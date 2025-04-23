@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using Unity.Sentis;
+using System.Collections.Generic;
 
 public class OthelloGameMain : MonoBehaviour
 {
@@ -46,7 +47,7 @@ public class OthelloGameMain : MonoBehaviour
 
 
         Masking[BoardRows * BoardCols] = 0f; //마스킹인데 지금 더미임. 지금 이 값 안들어감.
-        Invoke("RequestAI", 1f); //작동되나 확인하려고 start하자마자 ai착수시켜봄.
+        //Invoke("RequestAI", 1f); //작동되나 확인하려고 start하자마자 ai착수시켜봄.
     }
 
     void Update()
@@ -158,21 +159,72 @@ public class OthelloGameMain : MonoBehaviour
 
     //돌 클릭 이벤트
     public void OnPieceClicked(int x, int y)
-    {   
-        //내 차례 아니면
-        if (currentTurn != 1) return;
+    {
+        if (board[y, x] != 0) return;         // 이미 돌 있으면 무시
 
-        //돌 있으면
-        if (board[y,x] != 0)
+        bool valid = FlipAllDirections(x, y, currentTurn, false); // 실제 뒤집지 않고 검사
+
+        if (!valid)
         {
+            Debug.Log("여기에 수를 둘수 없습니다");
             return;
         }
 
-        board[y, x] = 1;
-        Debug.Log($"돌 놓임 흑돌로 ({x},{y})");
+        // 유효한 착수면 돌 놓고 뒤집기
+        board[y, x] = currentTurn;
+        FlipAllDirections(x, y, currentTurn, true);
 
         UpdateBoardGraphics();
 
-        currentTurn = -1;
+        currentTurn = -currentTurn; // 턴 넘기기
+    }
+
+    //false일때 검사, true일때 뒤집기
+    bool FlipAllDirections(int x, int y, int currentPlayer, bool actuallyFlip = true)
+    {
+        bool flippedAny = false; //돌을 하나라도 뒤집었는지 체크
+
+        for (int dx = -1; dx <= 1; dx++)
+        {
+            for (int dy = -1; dy <= 1; dy++)
+            {
+                if (dx == 0 && dy == 0) continue;
+
+                if (TryFlipInDirection(x, y, dx, dy, currentPlayer, actuallyFlip))
+                    flippedAny = true;
+            }
+        }
+        return flippedAny;
+    }
+
+    bool TryFlipInDirection(int startX, int startY, int dx, int dy, int currentPlayer, bool actuallyFlip)
+    {
+        int x = startX + dx;
+        int y = startY + dy;
+        int opponent = -currentPlayer;
+
+        //뒤집을 돌들 넣기위한 리스트
+        List<(int, int)> toFlip = new List<(int, int)>();
+
+        // 상대 돌이 이어져 있는지 체크
+        while (x >= 0 && x < 8 && y >= 0 && y < 8 && board[y, x] == opponent)
+        {
+            toFlip.Add((x, y));
+            x += dx;
+            y += dy;
+        }
+
+        // 끝에 내 돌이 있으면 뒤집기 수행
+        if (x >= 0 && x < 8 && y >= 0 && y < 8 && board[y, x] == currentPlayer && toFlip.Count > 0)
+        {
+            if (actuallyFlip)
+            {
+                foreach (var (fx, fy) in toFlip)
+                    board[fy, fx] = currentPlayer;
+            }
+            return true;
+        }
+
+        return false;
     }
 }
