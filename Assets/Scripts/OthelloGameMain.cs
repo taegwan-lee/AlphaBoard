@@ -1,20 +1,23 @@
 ﻿using UnityEngine;
 using Unity.Sentis;
-using System.Collections.Generic;
+using UnityEngine.UI;
+using System.Collections.Generic; 
 
 public class OthelloGameMain : MonoBehaviour
 {
     //모델
     public ModelAsset modelAsset;
-    private Worker OthelloWorker;
+    Worker real_Engine;
 
     const int BoardRows = 8;
     const int BoardCols = 8;
 
-    //마스킹용 텐서
-    Tensor Masking = new Tensor<float>(new TensorShape(BoardRows * BoardCols + 1));
+    //텐서값값
+    Tensor<float> m_Data;
+    Tensor<float> m_legalMoves;
+    Tensor<float> m_MoveProbabilities = null;
 
-    //보드판
+    //보드판정보보
     int[,] board = new int[BoardRows, BoardCols];
 
     //그래픽용 보드판 배열
@@ -24,34 +27,45 @@ public class OthelloGameMain : MonoBehaviour
     public Material blackMat, whiteMat, transparentMat;
     public GameObject PiecePrefab;
 
-    //턴
-    int currentTurn = 1;
-
+    //턴용
+    private int currentTurn = 1;
+    private bool aiScheduled = false;
 
     void Start()
     {
-        //모델 불러오기
-        Model model = ModelLoader.Load(modelAsset);
-        OthelloWorker = new Worker(model, BackendType.GPUCompute);
+        var AIModel = ModelLoader.Load(modelAsset);
 
-        Tensor<float> Masking = new Tensor<float>(new TensorShape(BoardRows * BoardCols + 1));
+        var graph = new FunctionalGraph();
+        var inputs = graph.AddInputs(AIModel);
+        var outputs = Functional.Forward(AIModel, inputs);
+        var boardState = outputs[0];
+        var bestMove = outputs[1];
+
+        var legal = graph.AddInput(DataType.Float, new TensorShape(BoardRows * BoardCols + 1 ));
+
+        bestMove = Functional.Exp(bestMove);
+        bestMove = (0.0001f + bestMove) *legal;
+        var redSum = Functional.ReduceSum(bestMove, new int[] {1}, true);
+        bestMove /= redSum;
+
+        var bestMoveModel = graph.Compile(boardState, bestMove);
+
+        real_Engine = new Worker(bestMoveModel, BackendType.CPU);
+
+        m_Data = new Tensor<float>(new TensorShape(1,1, BoardRows, BoardCols));
+        m_legalMoves = new Tensor<float>(new TensorShape(BoardRows * BoardCols + 1));
 
         CreateBoard();
         CreateBoardGraphics();
         UpdateBoardGraphics();
-
-        for (int i = 0; i < BoardRows * BoardCols; i++)
-        {
-            Masking[i] = 1f;
-        }
-
-
-        Masking[BoardRows * BoardCols] = 0f; //마스킹인데 지금 더미임. 지금 이 값 안들어감.
-        //Invoke("RequestAI", 1f); //작동되나 확인하려고 start하자마자 ai착수시켜봄.
     }
 
     void Update()
     {
+        if(currentTurn==-1 && !aiScheduled){
+            Invoke("RequestAI",1f);
+            aiScheduled = true;
+        }
         UpdateBoardGraphics();
     }
 
@@ -70,6 +84,7 @@ public class OthelloGameMain : MonoBehaviour
         float offset = 3.5f; // 보드를 가운데 정렬하기 위한 오프셋
         return new Vector3(x - offset, 0f, -(y - offset));
     }
+       
 
     //보드판 생성 그래픽용
     void CreateBoardGraphics()
@@ -91,6 +106,7 @@ public class OthelloGameMain : MonoBehaviour
         }
     }
 
+    //그래픽 보드판 업데이트트
     void UpdateBoardGraphics()
     {
         for (int y = 0; y < BoardRows; y++) 
@@ -110,41 +126,64 @@ public class OthelloGameMain : MonoBehaviour
         }
     }
 
-    //현재 보드판 정보 sentis로 넘겨주게 텐서로 만들기
-    Tensor<float> BoardToTensor()
+
+    //보드현황 tensor 변환   
+    void UpdateBoardTensor()
     {
-        var tensor = new Tensor<float>(new TensorShape(1, 1, BoardRows, BoardCols));
         for (int y = 0; y < BoardRows; y++)
         {
             for (int x = 0; x < BoardCols; x++)
             {
-                tensor[0, 0, y, x] = board[y, x];
-
+                // currentTurn 기준으로 AI가 항상 자기 시점에서 보도록
+                m_Data[0, 0, y, x] = board[y, x] * currentTurn;
             }
         }
-        return tensor;
     }
+
+    //마스킹 텐서화화
+    void UpdateLegalMovesTensor()
+    {
+        bool moveAvailable = false;
+
+        for (int y = 0; y < BoardRows; y++)
+        {
+            for (int x = 0; x < BoardCols; x++)
+            {
+                bool legal = board[y, x] == 0 && FlipAllDirections(x, y, currentTurn, false);
+                m_legalMoves[y * BoardCols + x] = legal ? 1f : 0f;
+                if (legal) moveAvailable = true;
+            }
+        }
+
+        // 패스 허용 여부
+        m_legalMoves[BoardRows * BoardCols] = moveAvailable ? 0f : 1f;
+    }
+
 
     //AI호출
     void RequestAI()
     {
-        Debug.Log("AI호출 확인용");
+        aiScheduled = false;
 
-        using var boardTensor = BoardToTensor();
-        using var legalTensor = Masking;
+        UpdateBoardTensor();
+        UpdateLegalMovesTensor();
 
-        OthelloWorker.Schedule(boardTensor);
+        real_Engine.Schedule(m_Data, m_legalMoves);
 
-        using var moveProbabilities = (OthelloWorker.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
+        using var boardState = (real_Engine.PeekOutput(0) as Tensor<float>).ReadbackAndClone();    
+        m_MoveProbabilities?.Dispose();
+        m_MoveProbabilities = (real_Engine.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
 
-        int bestIndex = 0;
-        float bestValue = -1f;
+        float boardValue = boardState[0,0];
+        int bestIndex = -1;
 
-        for (int i=0; i<moveProbabilities.count; i++)
+        
+
+        for (int i = 0; i < m_MoveProbabilities.count; i++)
         {
-            if (moveProbabilities[i]> bestValue)
+            if (m_MoveProbabilities[i] > boardValue)
             {
-                bestValue = moveProbabilities[i];
+                boardValue = m_MoveProbabilities[i];
                 bestIndex = i;
             }
         }
@@ -153,8 +192,10 @@ public class OthelloGameMain : MonoBehaviour
         int x = bestIndex % BoardCols;
 
         board[y, x] = -1;
-        Debug.Log($"sentis가 ({x},{y}에 흰돌 놈");
+        FlipAllDirections(x, y, -1, true);
         UpdateBoardGraphics();
+
+        currentTurn = -currentTurn;
     }
 
     //돌 클릭 이벤트
