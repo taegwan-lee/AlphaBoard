@@ -1,2 +1,16 @@
 fileFormatVersion: 2
 guid: 644f78ea910e79f4eb9d3657b031009f
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - modelAsset: {fileID: 5022602860645237092, guid: 4412b402c770c6c41a7dc300c4177cc1, type: 3}
+  - blackMat: {instanceID: 0}
+  - whiteMat: {instanceID: 0}
+  - transparentMat: {instanceID: 0}
+  - PiecePrefab: {instanceID: 0}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

@@ -12,12 +12,12 @@ public class OthelloGameMain : MonoBehaviour
     const int BoardRows = 8;
     const int BoardCols = 8;
 
-    //텐서값값
+    //텐서값
     Tensor<float> m_Data;
     Tensor<float> m_legalMoves;
     Tensor<float> m_MoveProbabilities = null;
 
-    //보드판정보보
+    //보드판정
     int[,] board = new int[BoardRows, BoardCols];
 
     //그래픽용 보드판 배열
@@ -30,6 +30,7 @@ public class OthelloGameMain : MonoBehaviour
     //턴용
     private int currentTurn = 1;
     private bool aiScheduled = false;
+    private float m_AIDifficultyTemperature = 0.1f;
 
     void Start()
     {
@@ -38,21 +39,22 @@ public class OthelloGameMain : MonoBehaviour
         var graph = new FunctionalGraph();
         var inputs = graph.AddInputs(AIModel);
         var outputs = Functional.Forward(AIModel, inputs);
-        var boardState = outputs[0];
-        var bestMove = outputs[1];
+               
+        var select_policy = outputs[0];
+        var boardState = outputs[1];
 
-        var legal = graph.AddInput(DataType.Float, new TensorShape(BoardRows * BoardCols + 1 ));
+        var legal = graph.AddInput(DataType.Float, new TensorShape(BoardRows * BoardCols +1));
 
-        bestMove = Functional.Exp(bestMove);
-        bestMove = (0.0001f + bestMove) *legal;
-        var redSum = Functional.ReduceSum(bestMove, new int[] {1}, true);
-        bestMove /= redSum;
+        select_policy = Functional.Exp(select_policy * m_AIDifficultyTemperature);
+        select_policy = (0.0001f + select_policy) * legal;
+        var redSum = Functional.ReduceSum(select_policy, new int[] {1}, true);
+        select_policy /= redSum;
 
-        var bestMoveModel = graph.Compile(boardState, bestMove);
+        var bestMoveModel = graph.Compile(select_policy, boardState);
 
         real_Engine = new Worker(bestMoveModel, BackendType.CPU);
 
-        m_Data = new Tensor<float>(new TensorShape(1,1, BoardRows, BoardCols));
+        m_Data = new Tensor<float>(new TensorShape(1,2, BoardRows, BoardCols));
         m_legalMoves = new Tensor<float>(new TensorShape(BoardRows * BoardCols + 1));
 
         CreateBoard();
@@ -106,7 +108,7 @@ public class OthelloGameMain : MonoBehaviour
         }
     }
 
-    //그래픽 보드판 업데이트트
+    //그래픽 보드판 업데이트
     void UpdateBoardGraphics()
     {
         for (int y = 0; y < BoardRows; y++) 
@@ -130,17 +132,30 @@ public class OthelloGameMain : MonoBehaviour
     //보드현황 tensor 변환   
     void UpdateBoardTensor()
     {
-        for (int y = 0; y < BoardRows; y++)
+         for (int y = 0; y < BoardRows; y++)
         {
             for (int x = 0; x < BoardCols; x++)
             {
-                // currentTurn 기준으로 AI가 항상 자기 시점에서 보도록
-                m_Data[0, 0, y, x] = board[y, x] * currentTurn;
+                    if (board[y, x] == currentTurn)
+                    {
+                        m_Data[0, 0, y, x] = 1f;  // 내 돌
+                        m_Data[0, 1, y, x] = 0f;
+                    }
+                    else if (board[y, x] == -currentTurn)
+                    {
+                        m_Data[0, 0, y, x] = 0f;
+                        m_Data[0, 1, y, x] = 1f;  // 상대 돌
+                    }
+                    else
+                    {   
+                        m_Data[0, 0, y, x] = 0f;
+                        m_Data[0, 1, y, x] = 0f;
+                    }
             }
         }
     }
 
-    //마스킹 텐서화화
+    //마스킹 텐서화
     void UpdateLegalMovesTensor()
     {
         bool moveAvailable = false;
@@ -170,22 +185,30 @@ public class OthelloGameMain : MonoBehaviour
 
         real_Engine.Schedule(m_Data, m_legalMoves);
 
-        using var boardState = (real_Engine.PeekOutput(0) as Tensor<float>).ReadbackAndClone();    
         m_MoveProbabilities?.Dispose();
-        m_MoveProbabilities = (real_Engine.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
+        m_MoveProbabilities = (real_Engine.PeekOutput(0) as Tensor<float>).ReadbackAndClone();
+        using var latestBoard = (real_Engine.PeekOutput(1) as Tensor<float>).ReadbackAndClone();    
 
-        float boardValue = boardState[0,0];
+
+        float boardValue = latestBoard[0,0];
+
+        float bestValue = -1f;
         int bestIndex = -1;
-
         
-
         for (int i = 0; i < m_MoveProbabilities.count; i++)
         {
-            if (m_MoveProbabilities[i] > boardValue)
+            if (m_MoveProbabilities[i] > bestValue)
             {
-                boardValue = m_MoveProbabilities[i];
+                bestValue = m_MoveProbabilities[i];
                 bestIndex = i;
             }
+        }
+
+        if (bestIndex == 64)
+        {
+            Debug.Log("AI가 패스함.");
+            currentTurn = -currentTurn;
+            return;
         }
 
         int y = bestIndex / BoardCols;
@@ -195,6 +218,10 @@ public class OthelloGameMain : MonoBehaviour
         FlipAllDirections(x, y, -1, true);
         UpdateBoardGraphics();
 
+        Debug.Log($"현재 승률 : {boardValue}");
+        float raw = latestBoard[0, 0];
+        Debug.Log($"[승률] 값: {raw:F4}  (보드 변화 감지용)");
+        Debug.Log($"현재 턴: {currentTurn}");
         currentTurn = -currentTurn;
     }
 
