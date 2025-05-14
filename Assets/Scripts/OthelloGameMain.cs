@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using Unity.Sentis;
 using UnityEngine.UI;
 using System.Collections.Generic; 
@@ -40,8 +40,8 @@ public class OthelloGameMain : MonoBehaviour
         var inputs = graph.AddInputs(AIModel);
         var outputs = Functional.Forward(AIModel, inputs);
                
-        var select_policy = outputs[0];
-        var boardState = outputs[1];
+        var boardState = outputs[0];
+        var select_policy = outputs[1];
 
         var legal = graph.AddInput(DataType.Float, new TensorShape(BoardRows * BoardCols +1));
 
@@ -50,12 +50,13 @@ public class OthelloGameMain : MonoBehaviour
         var redSum = Functional.ReduceSum(select_policy, new int[] {1}, true);
         select_policy /= redSum;
 
-        var bestMoveModel = graph.Compile(select_policy, boardState);
+        var bestMoveModel = graph.Compile(boardState,select_policy);
 
         real_Engine = new Worker(bestMoveModel, BackendType.CPU);
 
         m_Data = new Tensor<float>(new TensorShape(1,2, BoardRows, BoardCols));
         m_legalMoves = new Tensor<float>(new TensorShape(BoardRows * BoardCols + 1));
+
 
         CreateBoard();
         CreateBoardGraphics();
@@ -185,10 +186,10 @@ public class OthelloGameMain : MonoBehaviour
 
         real_Engine.Schedule(m_Data, m_legalMoves);
 
-        m_MoveProbabilities?.Dispose();
-        m_MoveProbabilities = (real_Engine.PeekOutput(0) as Tensor<float>).ReadbackAndClone();
-        using var latestBoard = (real_Engine.PeekOutput(1) as Tensor<float>).ReadbackAndClone();    
 
+        using var latestBoard = (real_Engine.PeekOutput(0) as Tensor<float>).ReadbackAndClone();    
+        m_MoveProbabilities?.Dispose();
+        m_MoveProbabilities = (real_Engine.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
 
         float boardValue = latestBoard[0,0];
 
@@ -219,9 +220,9 @@ public class OthelloGameMain : MonoBehaviour
         UpdateBoardGraphics();
 
         Debug.Log($"현재 승률 : {boardValue}");
-        float raw = latestBoard[0, 0];
-        Debug.Log($"[승률] 값: {raw:F4}  (보드 변화 감지용)");
-        Debug.Log($"현재 턴: {currentTurn}");
+        Debug.Log($"latestBoard : {latestBoard.shape}");
+        Debug.Log($"policy : {m_MoveProbabilities.shape}");
+
         currentTurn = -currentTurn;
     }
 

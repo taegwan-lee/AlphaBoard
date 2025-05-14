@@ -406,7 +406,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 644f78ea910e79f4eb9d3657b031009f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  modelAsset: {fileID: 5022602860645237092, guid: db854f1ece2a1364ba0d077f63923ee5, type: 3}
+  modelAsset: {fileID: 5022602860645237092, guid: 1db9361e191c10347b4ed03ebb763f9e, type: 3}
   blackMat: {fileID: 2100000, guid: b840b5bb067a8134880011c46e3cf397, type: 2}
   whiteMat: {fileID: 2100000, guid: 8ffa90fd3f06d4444ae206cdfdc04979, type: 2}
   transparentMat: {fileID: 2100000, guid: 9e1399e3342894f42af85dfe665565ee, type: 2}
