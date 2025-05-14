@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using Unity.Sentis;
 using UnityEngine.UI;
 using System.Collections.Generic; 
@@ -35,9 +35,9 @@ public class OthelloGameMain : MonoBehaviour
         var graph = new FunctionalGraph();
         var inputs = graph.AddInputs(AIModel);
         var outputs = Functional.Forward(AIModel, inputs);
-
-        var select_policy = outputs[0];
-        var boardState = outputs[1];
+               
+        var boardState = outputs[0];
+        var select_policy = outputs[1];
 
         var legal = graph.AddInput(DataType.Float, new TensorShape(BoardRows * BoardCols + 1));
 
@@ -46,12 +46,13 @@ public class OthelloGameMain : MonoBehaviour
         var redSum = Functional.ReduceSum(select_policy, new int[] { 1 }, true);
         select_policy /= redSum;
 
-        var bestMoveModel = graph.Compile(select_policy, boardState);
+        var bestMoveModel = graph.Compile(boardState,select_policy);
 
         real_Engine = new Worker(bestMoveModel, BackendType.CPU);
 
         m_Data = new Tensor<float>(new TensorShape(1, 2, BoardRows, BoardCols));
         m_legalMoves = new Tensor<float>(new TensorShape(BoardRows * BoardCols + 1));
+
 
         CreateBoard();
         CreateBoardGraphics();
@@ -179,9 +180,11 @@ public class OthelloGameMain : MonoBehaviour
 
         real_Engine.Schedule(m_Data, m_legalMoves);
 
+        using var latestBoard = (real_Engine.PeekOutput(0) as Tensor<float>).ReadbackAndClone();
         m_MoveProbabilities?.Dispose();
-        m_MoveProbabilities = (real_Engine.PeekOutput(0) as Tensor<float>).ReadbackAndClone();
-        using var latestBoard = (real_Engine.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
+        m_MoveProbabilities = (real_Engine.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
+        
+        float boardValue = latestBoard[0, 0];
 
         float bestValue = -1f;
         int bestIndex = -1;
@@ -226,29 +229,36 @@ public class OthelloGameMain : MonoBehaviour
         UpdateLegalMovesTensor();
 
         real_Engine.Schedule(m_Data, m_legalMoves);
-        var moveProb = (real_Engine.PeekOutput(0) as Tensor<float>).ReadbackAndClone();
+
+        using var latestBoard = (real_Engine.PeekOutput(0) as Tensor<float>).ReadbackAndClone();
+        m_MoveProbabilities?.Dispose();
+        m_MoveProbabilities = (real_Engine.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
+
+        float boardValue = latestBoard[0, 0]; 
 
         float bestValue = float.MinValue;
         int bestIndex = -1;
 
         for (int i = 0; i < BoardRows * BoardCols; i++)
         {
-            if (moveProb[i] > bestValue)
+            if (m_MoveProbabilities[i] > bestValue)
             {
-                bestValue = moveProb[i];
+                bestValue = m_MoveProbabilities[i];
                 bestIndex = i;
             }
         }
 
-        moveProb.Dispose();
+        Debug.Log($"[추천 수 계산] 승률: {boardValue:F4}, 선택 index: {bestIndex}");
 
         if (bestIndex == -1)
             return null;
 
         int y = bestIndex / BoardCols;
         int x = bestIndex % BoardCols;
+
         return new Vector2Int(x, y);
     }
+
 
     public void OnPieceClicked(int x, int y)
     {
