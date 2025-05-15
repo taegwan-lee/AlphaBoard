@@ -50,7 +50,7 @@ public class OthelloGameMain : MonoBehaviour
 
         real_Engine = new Worker(bestMoveModel, BackendType.CPU);
 
-        m_Data = new Tensor<float>(new TensorShape(1, 2, BoardRows, BoardCols));
+        m_Data = new Tensor<float>(new TensorShape(1, 1, BoardRows, BoardCols));
         m_legalMoves = new Tensor<float>(new TensorShape(BoardRows * BoardCols + 1));
 
 
@@ -130,7 +130,8 @@ public class OthelloGameMain : MonoBehaviour
     }
 
     void UpdateBoardTensor()
-    {
+    {   
+        /*
         for (int y = 0; y < BoardRows; y++)
         {
             for (int x = 0; x < BoardCols; x++)
@@ -150,6 +151,21 @@ public class OthelloGameMain : MonoBehaviour
                     m_Data[0, 0, y, x] = 0f;
                     m_Data[0, 1, y, x] = 0f;
                 }
+            }
+        }
+        */
+
+        //기존 sentis 모델은 채널 하나만 받음
+        for (int y = 0; y < BoardRows; y++)
+        {
+            for (int x = 0; x < BoardCols; x++)
+            {
+            if (board[y, x] == currentTurn)
+                m_Data[0, 0, y, x] = 1f;
+            else if (board[y, x] == -currentTurn)
+                m_Data[0, 0, y, x] = -1f;
+            else
+                m_Data[0, 0, y, x] = 0f;
             }
         }
     }
@@ -213,7 +229,8 @@ public class OthelloGameMain : MonoBehaviour
 
         recommendedMove = null;  // AI 착수 후 추천 수 초기화
         UpdateBoardGraphics();
-
+        Debug.Log($"{latestBoard.shape}");
+        Debug.Log($"{m_MoveProbabilities.shape}");
         NextTurn();
     }
 
