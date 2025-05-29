@@ -1,11 +1,13 @@
 using UnityEngine;
 using Unity.Sentis;
 using UnityEngine.UI;
-using System.Collections.Generic; 
+using System.Collections.Generic;
+using TMPro;
 
 public class OthelloGameMain : MonoBehaviour
 {
     public ModelAsset modelAsset;
+    public TMP_Text turnText;
     Worker real_Engine;
 
     const int BoardRows = 8;
@@ -35,7 +37,7 @@ public class OthelloGameMain : MonoBehaviour
         var graph = new FunctionalGraph();
         var inputs = graph.AddInputs(AIModel);
         var outputs = Functional.Forward(AIModel, inputs);
-               
+
         var boardState = outputs[0];
         var select_policy = outputs[1];
 
@@ -46,7 +48,7 @@ public class OthelloGameMain : MonoBehaviour
         var redSum = Functional.ReduceSum(select_policy, new int[] { 1 }, true);
         select_policy /= redSum;
 
-        var bestMoveModel = graph.Compile(boardState,select_policy);
+        var bestMoveModel = graph.Compile(boardState, select_policy);
 
         real_Engine = new Worker(bestMoveModel, BackendType.CPU);
 
@@ -63,7 +65,7 @@ public class OthelloGameMain : MonoBehaviour
     {
         if (currentTurn == -1 && !aiScheduled)
         {
-            Invoke("RequestAI", 1f);
+            Invoke("RequestAI", 2f);
             aiScheduled = true;
         }
 
@@ -73,6 +75,7 @@ public class OthelloGameMain : MonoBehaviour
         }
 
         UpdateBoardGraphics();
+        UpdateTurnText(); //UI 턴 표시용
     }
 
     void CreateBoard()
@@ -108,6 +111,9 @@ public class OthelloGameMain : MonoBehaviour
 
     void UpdateBoardGraphics()
     {
+        float blink = Mathf.PingPong(Time.time * 2f, 1f);
+        bool showHint = blink > 0.5f;
+
         for (int y = 0; y < BoardRows; y++)
         {
             for (int x = 0; x < BoardCols; x++)
@@ -115,9 +121,12 @@ public class OthelloGameMain : MonoBehaviour
                 int CurrentState = board[y, x];
                 Renderer PieceColor = pieces[y, x].GetComponent<Renderer>();
 
-                if (recommendedMove.HasValue && recommendedMove.Value.x == x && recommendedMove.Value.y == y)
+                if (recommendedMove.HasValue &&
+                    recommendedMove.Value.x == x &&
+                    recommendedMove.Value.y == y)
                 {
-                    PieceColor.material = hintMat;
+                    //힌트 깜빡이게
+                    PieceColor.material = showHint ? hintMat : transparentMat;
                 }
                 else if (CurrentState == 1)
                     PieceColor.material = blackMat;
@@ -130,7 +139,7 @@ public class OthelloGameMain : MonoBehaviour
     }
 
     void UpdateBoardTensor()
-    {   
+    {
         /*
         for (int y = 0; y < BoardRows; y++)
         {
@@ -160,12 +169,12 @@ public class OthelloGameMain : MonoBehaviour
         {
             for (int x = 0; x < BoardCols; x++)
             {
-            if (board[y, x] == currentTurn)
-                m_Data[0, 0, y, x] = 1f;
-            else if (board[y, x] == -currentTurn)
-                m_Data[0, 0, y, x] = -1f;
-            else
-                m_Data[0, 0, y, x] = 0f;
+                if (board[y, x] == currentTurn)
+                    m_Data[0, 0, y, x] = 1f;
+                else if (board[y, x] == -currentTurn)
+                    m_Data[0, 0, y, x] = -1f;
+                else
+                    m_Data[0, 0, y, x] = 0f;
             }
         }
     }
@@ -199,7 +208,7 @@ public class OthelloGameMain : MonoBehaviour
         using var latestBoard = (real_Engine.PeekOutput(0) as Tensor<float>).ReadbackAndClone();
         m_MoveProbabilities?.Dispose();
         m_MoveProbabilities = (real_Engine.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
-        
+
         float boardValue = latestBoard[0, 0];
 
         float bestValue = -1f;
@@ -251,7 +260,7 @@ public class OthelloGameMain : MonoBehaviour
         m_MoveProbabilities?.Dispose();
         m_MoveProbabilities = (real_Engine.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
 
-        float boardValue = latestBoard[0, 0]; 
+        float boardValue = latestBoard[0, 0];
 
         float bestValue = float.MinValue;
         int bestIndex = -1;
@@ -384,5 +393,21 @@ public class OthelloGameMain : MonoBehaviour
         }
 
         return false;
+    }
+    
+    //턴 표시용
+    void UpdateTurnText()
+    {
+        if (turnText == null) return;
+
+        if (currentTurn == 1)
+        {
+            turnText.text = "당신의 차례";
+        }
+        else if (currentTurn == -1)
+        {
+            if (aiScheduled)
+                turnText.text = "AI가 계산 중...";
+        }
     }
 }
