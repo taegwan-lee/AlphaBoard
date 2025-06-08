@@ -22,7 +22,7 @@ public class PatternTracking : MonoBehaviour
 
     private ModelType ClassifyMove(Vector2Int pos)
     {
-        // 코너는 공격적인 수, 가장자리는 수비적인 수로 분류
+        // 일단 코너자리에 한번만 둬도 바로 모델 변경하게끔 해봄봄
         if ((pos.x == 0 || pos.x == 7) && (pos.y == 0 || pos.y == 7))
             return ModelType.Aggressive;
         if (pos.x == 0 || pos.x == 7 || pos.y == 0 || pos.y == 7)
@@ -36,7 +36,7 @@ public class PatternTracking : MonoBehaviour
         foreach (var move in recentMoves)
             if (move == ModelType.Aggressive) aggressive++;
 
-        return aggressive >= 1; // 최근 5턴 중 3턴 이상 공격적이면
+        return aggressive >= 1; // 최근 5턴 중 1턴 코너에 두면면
     }
 
     public ModelType GetRecommendedModelType()

@@ -377,19 +377,19 @@ public class OthelloGameMain : MonoBehaviour
         {
             patternTracker.RecordMove(new Vector2Int(x, y));
 
-            // 모델 추천 받아서 AI 타입 변경
+            // AI 타입 변경
             ModelType recommended = patternTracker.GetRecommendedModelType();
 
             if (recommended == ModelType.Aggressive)
             {
                 currentType = AIType.AggressiveAIType;
                 lightningEffect.PlayEffect();
-                Debug.Log("패턴 분석 결과: 공격적인 수 → AI는 수비형 모델로 대응");
+                Debug.Log("패턴 분석 결과: 공격적인 수 → 공격모델로 변경");
             }
             else
             {
                 currentType = AIType.NeutralAIType;
-                Debug.Log("패턴 분석 결과: 중립적인 수 → AI는 중립 모델 유지");
+                Debug.Log("패턴 분석 결과: 중립적인 수 → 중립 모델 유지");
             }
 
             NextTurn();
