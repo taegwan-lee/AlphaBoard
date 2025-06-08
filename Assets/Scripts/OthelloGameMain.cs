@@ -4,11 +4,25 @@ using UnityEngine.UI;
 using System.Collections.Generic;
 using TMPro;
 
+public enum AIType
+{
+    AggressiveAIType,
+    NeutralAIType
+}
+
 public class OthelloGameMain : MonoBehaviour
 {
     public ModelAsset modelAsset;
+
+    public ModelAsset aggressiveModelAsset; //공격적인 모델
     public TMP_Text turnText;
     Worker real_Engine;
+    Worker real_EngineAgg; //공격적인 모델용 워커
+
+
+    //패턴 파악
+    private PatternTracking patternTracker = new PatternTracking();
+    private AIType currentType = AIType.NeutralAIType;
 
     const int BoardRows = 8;
     const int BoardCols = 8;
@@ -24,37 +38,65 @@ public class OthelloGameMain : MonoBehaviour
     public Material hintMat;
     public GameObject PiecePrefab;
     public GameUIManager uiManager;
+    public GameObject probTextPrefab;
+    private GameObject[,] probTexts = new GameObject[BoardRows, BoardCols];
 
     private int currentTurn = 1;
     private bool aiScheduled = false;
     private float m_AIDifficultyTemperature = 0.1f;
     private Vector2Int? recommendedMove;
 
+    public AudioClip wrongStone;
+    public AudioSource wrongStoneObj;
+
+    public LightningEffect lightningEffect;
+    public CameraCharacter cameraRotate;
+
     void Start()
     {
+
+        //공격적 모델은 변수명뒤에 Agg붙일거임
         var AIModel = ModelLoader.Load(modelAsset);
+        var aggressiveModel = ModelLoader.Load(aggressiveModelAsset);
 
         var graph = new FunctionalGraph();
+        var graphAgg = new FunctionalGraph(); //공격모델용 그래프
+
         var inputs = graph.AddInputs(AIModel);
+        var inputsAgg = graphAgg.AddInputs(aggressiveModel);
+
         var outputs = Functional.Forward(AIModel, inputs);
+        var outputsAgg = Functional.Forward(aggressiveModel, inputsAgg);
 
         var boardState = outputs[0];
+        var boardStateAgg = outputsAgg[0];
+
         var select_policy = outputs[1];
+        var select_policyAgg = outputsAgg[1];
 
         var legal = graph.AddInput(DataType.Float, new TensorShape(BoardRows * BoardCols + 1));
+        var legalAgg = graphAgg.AddInput(DataType.Float, new TensorShape(BoardRows * BoardCols + 1));
 
         select_policy = Functional.Exp(select_policy * m_AIDifficultyTemperature);
         select_policy = (0.0001f + select_policy) * legal;
+
+        select_policyAgg = Functional.Exp(select_policyAgg * m_AIDifficultyTemperature);
+        select_policyAgg = (0.0001f + select_policyAgg) * legalAgg;
+
         var redSum = Functional.ReduceSum(select_policy, new int[] { 1 }, true);
+        var redSumAgg = Functional.ReduceSum(select_policyAgg, new int[] { 1 }, true);
+
         select_policy /= redSum;
+        select_policyAgg /= redSumAgg;
 
         var bestMoveModel = graph.Compile(boardState, select_policy);
+        var bestMoveModelAgg = graphAgg.Compile(boardStateAgg, select_policyAgg);
 
         real_Engine = new Worker(bestMoveModel, BackendType.CPU);
+        real_EngineAgg = new Worker(bestMoveModelAgg, BackendType.CPU);
 
-        m_Data = new Tensor<float>(new TensorShape(1, 1, BoardRows, BoardCols));
+        m_Data = new Tensor<float>(new TensorShape(1, 2, BoardRows, BoardCols));
         m_legalMoves = new Tensor<float>(new TensorShape(BoardRows * BoardCols + 1));
-
 
         CreateBoard();
         CreateBoardGraphics();
@@ -105,6 +147,12 @@ public class OthelloGameMain : MonoBehaviour
                 pieceScript.StoneX = x;
                 pieceScript.StoneY = y;
                 pieceScript.game = this;
+
+                // 확률 텍스트 생성
+                var textObj = Instantiate(probTextPrefab, GetWorldPosition(x, y) + Vector3.up * 0.1f, Quaternion.identity);
+                textObj.transform.SetParent(piece.transform); // 조각과 같이 따라다니게
+                textObj.SetActive(false);
+                probTexts[y, x] = textObj;
             }
         }
     }
@@ -134,13 +182,14 @@ public class OthelloGameMain : MonoBehaviour
                     PieceColor.material = whiteMat;
                 else
                     PieceColor.material = transparentMat;
+
             }
         }
     }
 
     void UpdateBoardTensor()
     {
-        /*
+
         for (int y = 0; y < BoardRows; y++)
         {
             for (int x = 0; x < BoardCols; x++)
@@ -162,9 +211,8 @@ public class OthelloGameMain : MonoBehaviour
                 }
             }
         }
-        */
 
-        //기존 sentis 모델은 채널 하나만 받음
+        /*
         for (int y = 0; y < BoardRows; y++)
         {
             for (int x = 0; x < BoardCols; x++)
@@ -177,6 +225,7 @@ public class OthelloGameMain : MonoBehaviour
                     m_Data[0, 0, y, x] = 0f;
             }
         }
+        */
     }
 
     void UpdateLegalMovesTensor()
@@ -203,11 +252,24 @@ public class OthelloGameMain : MonoBehaviour
         UpdateBoardTensor();
         UpdateLegalMovesTensor();
 
-        real_Engine.Schedule(m_Data, m_legalMoves);
+        Tensor <float> latestBoard;
 
-        using var latestBoard = (real_Engine.PeekOutput(0) as Tensor<float>).ReadbackAndClone();
-        m_MoveProbabilities?.Dispose();
-        m_MoveProbabilities = (real_Engine.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
+        //aitype 바뀌었는지 확인후 해당 ai호출
+        if (currentType == AIType.AggressiveAIType)
+        {
+            real_EngineAgg.Schedule(m_Data, m_legalMoves);
+            latestBoard = (real_EngineAgg.PeekOutput(0) as Tensor<float>).ReadbackAndClone();
+            m_MoveProbabilities?.Dispose();
+            m_MoveProbabilities = (real_EngineAgg.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
+        }
+        else
+        {
+            real_Engine.Schedule(m_Data, m_legalMoves);
+            latestBoard = (real_Engine.PeekOutput(0) as Tensor<float>).ReadbackAndClone();
+            m_MoveProbabilities?.Dispose();
+            m_MoveProbabilities = (real_Engine.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
+        }
+        
 
         float boardValue = latestBoard[0, 0];
 
@@ -238,8 +300,13 @@ public class OthelloGameMain : MonoBehaviour
 
         recommendedMove = null;  // AI 착수 후 추천 수 초기화
         UpdateBoardGraphics();
+        /*
         Debug.Log($"{latestBoard.shape}");
+        Debug.Log($"{boardValue}");
         Debug.Log($"{m_MoveProbabilities.shape}");
+        */
+        PrintMoveProbabilities();
+
         NextTurn();
     }
 
@@ -274,8 +341,6 @@ public class OthelloGameMain : MonoBehaviour
             }
         }
 
-        Debug.Log($"[추천 수 계산] 승률: {boardValue:F4}, 선택 index: {bestIndex}");
-
         if (bestIndex == -1)
             return null;
 
@@ -288,6 +353,11 @@ public class OthelloGameMain : MonoBehaviour
 
     public void OnPieceClicked(int x, int y)
     {
+        if (currentTurn != 1)
+        {
+            wrongStoneObj.PlayOneShot(wrongStone);
+            return;
+        }
         if (board[y, x] != 0) return;
 
         bool valid = FlipAllDirections(x, y, currentTurn, false);
@@ -303,111 +373,156 @@ public class OthelloGameMain : MonoBehaviour
         recommendedMove = null;  // 착수 후 추천 수 초기화
         UpdateBoardGraphics();
 
-        NextTurn();
+        if (currentTurn == 1)
+        {
+            patternTracker.RecordMove(new Vector2Int(x, y));
+
+            // 모델 추천 받아서 AI 타입 변경
+            ModelType recommended = patternTracker.GetRecommendedModelType();
+
+            if (recommended == ModelType.Aggressive)
+            {
+                currentType = AIType.AggressiveAIType;
+                lightningEffect.PlayEffect();
+                Debug.Log("패턴 분석 결과: 공격적인 수 → AI는 수비형 모델로 대응");
+            }
+            else
+            {
+                currentType = AIType.NeutralAIType;
+                Debug.Log("패턴 분석 결과: 중립적인 수 → AI는 중립 모델 유지");
+            }
+
+            NextTurn();
+        }
     }
 
 
-    void NextTurn()
-    {
-        int nextTurn = -currentTurn;
+        void NextTurn()
+        {
+            int nextTurn = -currentTurn;
 
-        if (HasAnyValidMove(nextTurn))
-        {
-            currentTurn = nextTurn;
-        }
-        else if (HasAnyValidMove(currentTurn))
-        {
-            Debug.Log("상대방은 착수할 수 없어 턴을 패스합니다.");
-        }
-        else
-        {
-            Debug.Log("양쪽 모두 착수 불가 → 게임 종료");
+            if (HasAnyValidMove(nextTurn))
+            {
+                currentTurn = nextTurn;
+            }
+            else if (HasAnyValidMove(currentTurn))
+            {
+                Debug.Log("상대방은 착수할 수 없어 턴을 패스합니다.");
+            }
+            else
+            {
+                Debug.Log("양쪽 모두 착수 불가 → 게임 종료");
 
-            int black = 0, white = 0;
+                int black = 0, white = 0;
+                for (int y = 0; y < BoardRows; y++)
+                {
+                    for (int x = 0; x < BoardCols; x++)
+                    {
+                        if (board[y, x] == 1) black++;
+                        else if (board[y, x] == -1) white++;
+                    }
+                }
+
+                uiManager.ShowGameOver(black, white);
+            }
+        }
+
+        bool HasAnyValidMove(int player)
+        {
             for (int y = 0; y < BoardRows; y++)
             {
                 for (int x = 0; x < BoardCols; x++)
                 {
-                    if (board[y, x] == 1) black++;
-                    else if (board[y, x] == -1) white++;
+                    if (board[y, x] == 0 && FlipAllDirections(x, y, player, false))
+                        return true;
                 }
             }
-
-            uiManager.ShowGameOver(black, white);
+            return false;
         }
-    }
 
-    bool HasAnyValidMove(int player)
-    {
-        for (int y = 0; y < BoardRows; y++)
+        bool FlipAllDirections(int x, int y, int currentPlayer, bool actuallyFlip = true)
         {
-            for (int x = 0; x < BoardCols; x++)
+            bool flippedAny = false;
+
+            for (int dx = -1; dx <= 1; dx++)
             {
-                if (board[y, x] == 0 && FlipAllDirections(x, y, player, false))
-                    return true;
+                for (int dy = -1; dy <= 1; dy++)
+                {
+                    if (dx == 0 && dy == 0) continue;
+
+                    if (TryFlipInDirection(x, y, dx, dy, currentPlayer, actuallyFlip))
+                        flippedAny = true;
+                }
+            }
+            return flippedAny;
+        }
+
+        bool TryFlipInDirection(int startX, int startY, int dx, int dy, int currentPlayer, bool actuallyFlip)
+        {
+            int x = startX + dx;
+            int y = startY + dy;
+            int opponent = -currentPlayer;
+
+            List<(int, int)> toFlip = new List<(int, int)>();
+
+            while (x >= 0 && x < 8 && y >= 0 && y < 8 && board[y, x] == opponent)
+            {
+                toFlip.Add((x, y));
+                x += dx;
+                y += dy;
+            }
+
+            if (x >= 0 && x < 8 && y >= 0 && y < 8 && board[y, x] == currentPlayer && toFlip.Count > 0)
+            {
+                if (actuallyFlip)
+                {
+                    foreach (var (fx, fy) in toFlip)
+                        board[fy, fx] = currentPlayer;
+                }
+                return true;
+            }
+
+            return false;
+        }
+
+        //턴 표시용
+        void UpdateTurnText()
+        {
+            if (turnText == null) return;
+
+            if (currentTurn == 1)
+            {
+                turnText.text = "당신의 차례";
+            }
+            else if (currentTurn == -1)
+            {
+                if (aiScheduled)
+                    turnText.text = "AI가 계산 중...";
             }
         }
-        return false;
-    }
 
-    bool FlipAllDirections(int x, int y, int currentPlayer, bool actuallyFlip = true)
-    {
-        bool flippedAny = false;
-
-        for (int dx = -1; dx <= 1; dx++)
+        void PrintMoveProbabilities()
         {
-            for (int dy = -1; dy <= 1; dy++)
+            if (m_MoveProbabilities == null)
             {
-                if (dx == 0 && dy == 0) continue;
-
-                if (TryFlipInDirection(x, y, dx, dy, currentPlayer, actuallyFlip))
-                    flippedAny = true;
+                Debug.Log("착수 확률 정보가 없습니다.");
+                return;
             }
-        }
-        return flippedAny;
-    }
 
-    bool TryFlipInDirection(int startX, int startY, int dx, int dy, int currentPlayer, bool actuallyFlip)
-    {
-        int x = startX + dx;
-        int y = startY + dy;
-        int opponent = -currentPlayer;
+            string boardOutput = "=== 착수 확률 (% 기준) ===\n";
 
-        List<(int, int)> toFlip = new List<(int, int)>();
-
-        while (x >= 0 && x < 8 && y >= 0 && y < 8 && board[y, x] == opponent)
-        {
-            toFlip.Add((x, y));
-            x += dx;
-            y += dy;
-        }
-
-        if (x >= 0 && x < 8 && y >= 0 && y < 8 && board[y, x] == currentPlayer && toFlip.Count > 0)
-        {
-            if (actuallyFlip)
+            for (int y = 0; y < BoardRows; y++)
             {
-                foreach (var (fx, fy) in toFlip)
-                    board[fy, fx] = currentPlayer;
+                for (int x = 0; x < BoardCols; x++)
+                {
+                    int index = y * BoardCols + x;
+                    float prob = m_MoveProbabilities[index];
+                    boardOutput += $"{(prob * 100f):F1}\t";
+                }
+                boardOutput += "\n";
             }
-            return true;
-        }
 
-        return false;
-    }
-    
-    //턴 표시용
-    void UpdateTurnText()
-    {
-        if (turnText == null) return;
-
-        if (currentTurn == 1)
-        {
-            turnText.text = "당신의 차례";
+            Debug.Log(boardOutput);
         }
-        else if (currentTurn == -1)
-        {
-            if (aiScheduled)
-                turnText.text = "AI가 계산 중...";
-        }
-    }
 }
+
