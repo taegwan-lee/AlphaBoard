@@ -1,22 +1,13 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
 
-public class NewMonoBehaviourScript : MonoBehaviour, IPointerClickHandler
+public class CharacterSelect : MonoBehaviour
 {
-    public GameObject dialogPanel;//대화창 스크립트 패널
-    public CharactorCamera charactorCamera;
+    public DialogueSequence dialogueSequence; //대사 넣을거
+    public DialogueManager dialogueManager;
 
-    void Start()
+    public void OnSelectCharacter()
     {
-        if (dialogPanel != null)
-        {
-            dialogPanel.SetActive(false);
-        }
-    }
-
-    public void OnPointerClick(PointerEventData eventData)
-    {
-        //charactorCamera.MoveCameraToTarget();
-        dialogPanel.SetActive(true);
+        dialogueManager.StartDialogue(dialogueSequence);
     }
 }

@@ -3,6 +3,9 @@ using Unity.Sentis;
 using UnityEngine.UI;
 using System.Collections.Generic;
 using TMPro;
+using System.Collections;
+using DG.Tweening;
+using UnityEngine.SceneManagement;
 
 public enum AIType
 {
@@ -48,12 +51,59 @@ public class OthelloGameMain : MonoBehaviour
 
     public AudioClip wrongStone;
     public AudioSource wrongStoneObj;
+    public AudioClip NewTypeClip;
+    public AudioSource NewTypeSource;
+
+    public AudioSource placeStoneSource;
+    public AudioClip placeStoneClip;
+    public AudioClip aiplaceStoneClip;
+    public AudioSource GameBgmSource;
+    public AudioClip GameBgmClip;
+    public AudioSource transitionSound;
+    public AudioClip transitionClip;
+    public AudioSource AggressivePhase;
 
     public LightningEffect lightningEffect;
     public CameraCharacter cameraRotate;
 
+
+    //캐릭터 프리팹 생성용 오브젝트
+    public GameObject EasyMan;
+    public GameObject NormalGirl;
+    public GameObject HardMan;
+    private GameObject currentCharacter; //현재 캐릭터 (중간열출용)
+    public Sprite aggressiveSprite;
+    public Transform CharacterPoint; //캐릭터 좌표
+    public DialogueManager dialogueManager;
+    public DialogueSequence gameOverDialogue;
+    public DialogueSequence aggressiveDialogue;
+    public DialogueSequence aggressiveDialogue_2;
+
+    [SerializeField] private float cellSpacing = 1.2f;
+
+    private bool gameEnded = false;
+    private bool isDialoguePlaying = false; //중간연출용 대사칠때 밑에 턴 안나오게
+    public Image transitionPanel;
+    public CanvasGroup gameOverPanel;
+
     void Start()
     {
+        //난이도 받아옴
+        Difficulty difficulty = GameSettings.SelectedDifficulty;
+        SpawnCharacterBasedOnDifficulty();
+
+        if (difficulty == Difficulty.Easy)
+        {
+            m_AIDifficultyTemperature = 1.0f;
+        }
+        else if (difficulty == Difficulty.Normal)
+        {
+            m_AIDifficultyTemperature = 0.5f;
+        }
+        else
+        {
+            m_AIDifficultyTemperature = 0.1f;
+        }
 
         //공격적 모델은 변수명뒤에 Agg붙일거임
         var AIModel = ModelLoader.Load(modelAsset);
@@ -68,11 +118,11 @@ public class OthelloGameMain : MonoBehaviour
         var outputs = Functional.Forward(AIModel, inputs);
         var outputsAgg = Functional.Forward(aggressiveModel, inputsAgg);
 
-        var boardState = outputs[0];
-        var boardStateAgg = outputsAgg[0];
+        var select_policy = outputs[0];
+        var boardState = outputs[1];
 
-        var select_policy = outputs[1];
-        var select_policyAgg = outputsAgg[1];
+        var select_policyAgg = outputsAgg[0];
+        var boardStateAgg = outputsAgg[1];
 
         var legal = graph.AddInput(DataType.Float, new TensorShape(BoardRows * BoardCols + 1));
         var legalAgg = graphAgg.AddInput(DataType.Float, new TensorShape(BoardRows * BoardCols + 1));
@@ -89,14 +139,16 @@ public class OthelloGameMain : MonoBehaviour
         select_policy /= redSum;
         select_policyAgg /= redSumAgg;
 
-        var bestMoveModel = graph.Compile(boardState, select_policy);
-        var bestMoveModelAgg = graphAgg.Compile(boardStateAgg, select_policyAgg);
+        var bestMoveModel = graph.Compile(select_policy, boardState);
+        var bestMoveModelAgg = graphAgg.Compile(select_policyAgg, boardStateAgg);
 
         real_Engine = new Worker(bestMoveModel, BackendType.CPU);
         real_EngineAgg = new Worker(bestMoveModelAgg, BackendType.CPU);
 
         m_Data = new Tensor<float>(new TensorShape(1, 2, BoardRows, BoardCols));
         m_legalMoves = new Tensor<float>(new TensorShape(BoardRows * BoardCols + 1));
+
+        GameBgmSource.Play();
 
         CreateBoard();
         CreateBoardGraphics();
@@ -105,19 +157,26 @@ public class OthelloGameMain : MonoBehaviour
 
     void Update()
     {
-        if (currentTurn == -1 && !aiScheduled)
+        if (currentTurn == -1 && !aiScheduled && !isDialoguePlaying && !gameEnded)
         {
-            Invoke("RequestAI", 2f);
             aiScheduled = true;
         }
 
-        if (currentTurn == 1 && !aiScheduled)
+        if (currentTurn == 1 && !aiScheduled && !isDialoguePlaying && !gameEnded)
         {
             HighlightRecommendedMove();
         }
 
         UpdateBoardGraphics();
+
+        if (!isDialoguePlaying && !gameEnded)
+            turnText.gameObject.SetActive(true);
         UpdateTurnText(); //UI 턴 표시용
+
+        if (gameEnded || isDialoguePlaying)
+        {
+            turnText.gameObject.SetActive(false);
+        }
     }
 
     void CreateBoard()
@@ -130,8 +189,8 @@ public class OthelloGameMain : MonoBehaviour
 
     Vector3 GetWorldPosition(int x, int y)
     {
-        float offset = 3.5f;
-        return new Vector3(x - offset, 0f, -(y - offset));
+        float offset = (BoardCols - 1) / 2f;
+        return new Vector3((x - offset) * cellSpacing, 0f, -(y - offset) * cellSpacing);
     }
 
     void CreateBoardGraphics()
@@ -252,24 +311,27 @@ public class OthelloGameMain : MonoBehaviour
         UpdateBoardTensor();
         UpdateLegalMovesTensor();
 
-        Tensor <float> latestBoard;
+        float rand = UnityEngine.Random.value;
+        float cumulative = 0f;
+
+        Tensor<float> latestBoard;
 
         //aitype 바뀌었는지 확인후 해당 ai호출
         if (currentType == AIType.AggressiveAIType)
         {
             real_EngineAgg.Schedule(m_Data, m_legalMoves);
-            latestBoard = (real_EngineAgg.PeekOutput(0) as Tensor<float>).ReadbackAndClone();
             m_MoveProbabilities?.Dispose();
-            m_MoveProbabilities = (real_EngineAgg.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
+            m_MoveProbabilities = (real_EngineAgg.PeekOutput(0) as Tensor<float>).ReadbackAndClone();
+            latestBoard = (real_EngineAgg.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
         }
         else
         {
             real_Engine.Schedule(m_Data, m_legalMoves);
-            latestBoard = (real_Engine.PeekOutput(0) as Tensor<float>).ReadbackAndClone();
             m_MoveProbabilities?.Dispose();
-            m_MoveProbabilities = (real_Engine.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
+            m_MoveProbabilities = (real_Engine.PeekOutput(0) as Tensor<float>).ReadbackAndClone();
+            latestBoard = (real_Engine.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
         }
-        
+
 
         float boardValue = latestBoard[0, 0];
 
@@ -278,10 +340,11 @@ public class OthelloGameMain : MonoBehaviour
 
         for (int i = 0; i < m_MoveProbabilities.count; i++)
         {
-            if (m_MoveProbabilities[i] > bestValue)
+            cumulative += m_MoveProbabilities[i];
+            if (rand <= cumulative)
             {
-                bestValue = m_MoveProbabilities[i];
                 bestIndex = i;
+                break;
             }
         }
 
@@ -302,9 +365,11 @@ public class OthelloGameMain : MonoBehaviour
         UpdateBoardGraphics();
         /*
         Debug.Log($"{latestBoard.shape}");
-        Debug.Log($"{boardValue}");
         Debug.Log($"{m_MoveProbabilities.shape}");
         */
+        Debug.Log($"{boardValue}");
+        placeStoneSource.pitch = 0.7f;
+        placeStoneSource.PlayOneShot(aiplaceStoneClip);
         PrintMoveProbabilities();
 
         NextTurn();
@@ -323,9 +388,9 @@ public class OthelloGameMain : MonoBehaviour
 
         real_Engine.Schedule(m_Data, m_legalMoves);
 
-        using var latestBoard = (real_Engine.PeekOutput(0) as Tensor<float>).ReadbackAndClone();
         m_MoveProbabilities?.Dispose();
-        m_MoveProbabilities = (real_Engine.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
+        m_MoveProbabilities = (real_Engine.PeekOutput(0) as Tensor<float>).ReadbackAndClone();
+        using var latestBoard = (real_Engine.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
 
         float boardValue = latestBoard[0, 0];
 
@@ -370,159 +435,332 @@ public class OthelloGameMain : MonoBehaviour
         board[y, x] = currentTurn;
         FlipAllDirections(x, y, currentTurn, true);
 
+        placeStoneSource.pitch = 1.0f;
+        placeStoneSource.PlayOneShot(placeStoneClip);
+
         recommendedMove = null;  // 착수 후 추천 수 초기화
         UpdateBoardGraphics();
 
         if (currentTurn == 1)
         {
             patternTracker.RecordMove(new Vector2Int(x, y));
-
-            // AI 타입 변경
-            ModelType recommended = patternTracker.GetRecommendedModelType();
-
-            if (recommended == ModelType.Aggressive)
-            {
-                currentType = AIType.AggressiveAIType;
-                lightningEffect.PlayEffect();
-                Debug.Log("패턴 분석 결과: 공격적인 수 → 공격모델로 변경");
-            }
-            else
-            {
-                currentType = AIType.NeutralAIType;
-                Debug.Log("패턴 분석 결과: 중립적인 수 → 중립 모델 유지");
-            }
-
             NextTurn();
         }
     }
 
 
-        void NextTurn()
+    //모델전환용 함수
+    void UpdateAIModel(ModelType recommended)
+    {
+        if (recommended == ModelType.Aggressive && currentType != AIType.AggressiveAIType)
         {
-            int nextTurn = -currentTurn;
+            currentType = AIType.AggressiveAIType;
+            Debug.Log("공격 모델로 전환");
 
-            if (HasAnyValidMove(nextTurn))
+        }
+        else if (recommended == ModelType.Neutral && currentType != AIType.NeutralAIType)
+        {
+            currentType = AIType.NeutralAIType;
+            Debug.Log("중립 모델로 전환");
+        }
+    }
+
+
+    void NextTurn()
+    {
+        int nextTurn = -currentTurn;
+
+        if (HasAnyValidMove(nextTurn))
+        {
+            currentTurn = nextTurn;
+
+            float boardValue = EstimateBoardValue();
+            //중간 연출 조건 확인 후 연출
+            if (ShouldSwitchToAggressiveAI(boardValue) && currentType != AIType.AggressiveAIType)
             {
-                currentTurn = nextTurn;
+                GameBgmSource.Stop();
+                NewTypeSource.PlayOneShot(NewTypeClip);
+                StartCoroutine(HandleAggressiveAISwitch());
             }
-            else if (HasAnyValidMove(currentTurn))
-            {
-                Debug.Log("상대방은 착수할 수 없어 턴을 패스합니다.");
-            }
-            else
-            {
-                Debug.Log("양쪽 모두 착수 불가 → 게임 종료");
 
-                int black = 0, white = 0;
-                for (int y = 0; y < BoardRows; y++)
-                {
-                    for (int x = 0; x < BoardCols; x++)
-                    {
-                        if (board[y, x] == 1) black++;
-                        else if (board[y, x] == -1) white++;
-                    }
-                }
-
-                uiManager.ShowGameOver(black, white);
+            // 중간연출 조건 안 맞으면 AI 호출
+            if (currentTurn == -1 && !aiScheduled)
+            {
+                Invoke("RequestAI", 2f);
+                aiScheduled = true;
             }
         }
-
-        bool HasAnyValidMove(int player)
+        else if (HasAnyValidMove(currentTurn))
         {
+            Debug.Log("상대방은 착수할 수 없어 턴을 패스합니다.");
+        }
+        else if (!gameEnded)
+        {
+            Debug.Log("양쪽 모두 착수 불가 → 게임 종료");
+            gameEnded = true;
+            isDialoguePlaying = true;
+
+            int black = 0, white = 0;
             for (int y = 0; y < BoardRows; y++)
             {
                 for (int x = 0; x < BoardCols; x++)
                 {
-                    if (board[y, x] == 0 && FlipAllDirections(x, y, player, false))
-                        return true;
+                    if (board[y, x] == 1) black++;
+                    else if (board[y, x] == -1) white++;
                 }
             }
-            return false;
-        }
 
-        bool FlipAllDirections(int x, int y, int currentPlayer, bool actuallyFlip = true)
+            StartCoroutine(HandleGameOverSequence());
+        }
+    }
+
+    bool HasAnyValidMove(int player)
+    {
+        for (int y = 0; y < BoardRows; y++)
         {
-            bool flippedAny = false;
-
-            for (int dx = -1; dx <= 1; dx++)
+            for (int x = 0; x < BoardCols; x++)
             {
-                for (int dy = -1; dy <= 1; dy++)
-                {
-                    if (dx == 0 && dy == 0) continue;
-
-                    if (TryFlipInDirection(x, y, dx, dy, currentPlayer, actuallyFlip))
-                        flippedAny = true;
-                }
+                if (board[y, x] == 0 && FlipAllDirections(x, y, player, false))
+                    return true;
             }
-            return flippedAny;
         }
+        return false;
+    }
 
-        bool TryFlipInDirection(int startX, int startY, int dx, int dy, int currentPlayer, bool actuallyFlip)
+    bool FlipAllDirections(int x, int y, int currentPlayer, bool actuallyFlip = true)
+    {
+        bool flippedAny = false;
+
+        for (int dx = -1; dx <= 1; dx++)
         {
-            int x = startX + dx;
-            int y = startY + dy;
-            int opponent = -currentPlayer;
-
-            List<(int, int)> toFlip = new List<(int, int)>();
-
-            while (x >= 0 && x < 8 && y >= 0 && y < 8 && board[y, x] == opponent)
+            for (int dy = -1; dy <= 1; dy++)
             {
-                toFlip.Add((x, y));
-                x += dx;
-                y += dy;
-            }
+                if (dx == 0 && dy == 0) continue;
 
-            if (x >= 0 && x < 8 && y >= 0 && y < 8 && board[y, x] == currentPlayer && toFlip.Count > 0)
-            {
-                if (actuallyFlip)
-                {
-                    foreach (var (fx, fy) in toFlip)
-                        board[fy, fx] = currentPlayer;
-                }
-                return true;
+                if (TryFlipInDirection(x, y, dx, dy, currentPlayer, actuallyFlip))
+                    flippedAny = true;
             }
-
-            return false;
         }
+        return flippedAny;
+    }
 
-        //턴 표시용
-        void UpdateTurnText()
+    bool TryFlipInDirection(int startX, int startY, int dx, int dy, int currentPlayer, bool actuallyFlip)
+    {
+        int x = startX + dx;
+        int y = startY + dy;
+        int opponent = -currentPlayer;
+
+        List<(int, int)> toFlip = new List<(int, int)>();
+
+        while (x >= 0 && x < 8 && y >= 0 && y < 8 && board[y, x] == opponent)
         {
-            if (turnText == null) return;
-
-            if (currentTurn == 1)
-            {
-                turnText.text = "당신의 차례";
-            }
-            else if (currentTurn == -1)
-            {
-                if (aiScheduled)
-                    turnText.text = "AI가 계산 중...";
-            }
+            toFlip.Add((x, y));
+            x += dx;
+            y += dy;
         }
 
-        void PrintMoveProbabilities()
+        if (x >= 0 && x < 8 && y >= 0 && y < 8 && board[y, x] == currentPlayer && toFlip.Count > 0)
         {
-            if (m_MoveProbabilities == null)
+            if (actuallyFlip)
             {
-                Debug.Log("착수 확률 정보가 없습니다.");
-                return;
+                foreach (var (fx, fy) in toFlip)
+                    board[fy, fx] = currentPlayer;
             }
-
-            string boardOutput = "=== 착수 확률 (% 기준) ===\n";
-
-            for (int y = 0; y < BoardRows; y++)
-            {
-                for (int x = 0; x < BoardCols; x++)
-                {
-                    int index = y * BoardCols + x;
-                    float prob = m_MoveProbabilities[index];
-                    boardOutput += $"{(prob * 100f):F1}\t";
-                }
-                boardOutput += "\n";
-            }
-
-            Debug.Log(boardOutput);
+            return true;
         }
+
+        return false;
+    }
+
+    //턴 표시용
+    void UpdateTurnText()
+    {
+        if (turnText == null) return;
+
+        if (currentTurn == 1)
+        {
+            turnText.text = "당신의 차례";
+        }
+        else if (currentTurn == -1)
+        {
+            if (aiScheduled)
+                turnText.text = "AI가 계산 중...";
+        }
+    }
+
+    void PrintMoveProbabilities()
+    {
+        if (m_MoveProbabilities == null)
+        {
+            Debug.Log("착수 확률 정보가 없습니다.");
+            return;
+        }
+
+        string boardOutput = "=== 착수 확률 (% 기준) ===\n";
+
+        for (int y = 0; y < BoardRows; y++)
+        {
+            for (int x = 0; x < BoardCols; x++)
+            {
+                int index = y * BoardCols + x;
+                float prob = m_MoveProbabilities[index];
+                boardOutput += $"{(prob * 100f):F1}\t";
+            }
+            boardOutput += "\n";
+        }
+
+        Debug.Log(boardOutput);
+    }
+
+    //이전 씬 난이도 받아와서 캐릭터 생성
+    void SpawnCharacterBasedOnDifficulty()
+    {
+        Difficulty difficulty = GameSettings.SelectedDifficulty;
+        GameObject prefabToSpawn = null;
+
+        switch (difficulty)
+        {
+            case Difficulty.Easy:
+                prefabToSpawn = EasyMan;
+                break;
+            case Difficulty.Normal:
+                prefabToSpawn = NormalGirl;
+                break;
+            case Difficulty.Hard:
+                prefabToSpawn = HardMan;
+                break;
+        }
+
+        if (prefabToSpawn != null)
+        {
+            currentCharacter = Instantiate(prefabToSpawn, CharacterPoint.position, Quaternion.identity, CharacterPoint);
+        }
+        else
+        {
+            Debug.LogWarning("난이도 설정안됨");
+        }
+    }
+
+    //모델 변환 조건파악용
+    bool ShouldSwitchToAggressiveAI(float boardValue)
+    {
+        int cornerCount = patternTracker.CountCornerMoves();
+        int blackCount = 0, whiteCount = 0;
+
+        for (int y = 0; y < BoardRows; y++)
+        {
+            for (int x = 0; x < BoardCols; x++)
+            {
+                if (board[y, x] == 1) blackCount++;
+                else if (board[y, x] == -1) whiteCount++;
+            }
+        }
+
+        return cornerCount >= 1 && blackCount > whiteCount && boardValue < 0f;
+    }
+
+    //중간연출용
+    IEnumerator HandleAggressiveAISwitch()
+    {
+        // 1. 턴 중지
+        aiScheduled = true;
+        isDialoguePlaying = true;
+
+        // 2. 현재 AI 타입 저장
+        currentType = AIType.AggressiveAIType;
+
+        // 3. 이펙트 실행
+        lightningEffect.PlayEffect();
+
+        // 4. 이펙트 대기
+        yield return new WaitForSeconds(2f);
+
+        // 5. 대사 시작
+        dialogueManager.StartDialogue(aggressiveDialogue);
+        yield return new WaitUntil(() => dialogueManager.IsDialogueFinished());
+
+        yield return StartCoroutine(PlayPhaseTransition());
+
+        //캐릭터 이미지 변경
+        ChangeCharacterImageToAggressive();
+
+        dialogueManager.StartDialogue(aggressiveDialogue_2);
+        yield return new WaitUntil(() => dialogueManager.IsDialogueFinished());
+
+        AggressivePhase.Play(); //2페이즈 음악
+
+        isDialoguePlaying = false;
+        // 8. AI 계속 진행
+        aiScheduled = false;
+        Invoke("RequestAI", 2f);
+    }
+    public void ChangeCharacterImageToAggressive()
+    {
+
+        if (currentCharacter == null)
+        {
+            Debug.LogWarning("현재 캐릭터 인스턴스가 없습니다");
+            return;
+        }
+
+        var visual = currentCharacter.GetComponent<CharacterVisual>();
+        if (visual != null)
+        {
+            visual.ChangeToAggressive(aggressiveSprite);
+        }
+        else
+        {
+            Debug.LogWarning("CharacterVisual 컴포넌트를 찾지 못했습니다.");
+        }
+    }
+
+    //보드평가값 리턴함수
+    float EstimateBoardValue()
+    {
+        UpdateBoardTensor();
+        UpdateLegalMovesTensor();
+
+        real_Engine.Schedule(m_Data, m_legalMoves);
+        using var latestBoard = (real_Engine.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
+
+        return latestBoard[0, 0];
+    }
+
+    public IEnumerator PlayPhaseTransition()
+    {
+        transitionPanel.color = new Color(1f, 1f, 1f, 0f);
+        transitionPanel.gameObject.SetActive(true);
+
+        transitionSound.PlayOneShot(transitionClip);
+
+        yield return transitionPanel.DOFade(1f, 5.0f).SetEase(Ease.InOutQuad).WaitForCompletion();
+
+        // 4. 정지 시간
+        yield return new WaitForSeconds(0.5f);
+
+        // 5. 빠르게 사라짐 (알파 1 → 0)
+        yield return transitionPanel.DOFade(0f, 0.3f).SetEase(Ease.OutQuad).WaitForCompletion();
+
+        // 6. 비활성화
+        transitionPanel.gameObject.SetActive(false);
+    }
+    IEnumerator ExitToLobby()
+    {
+        gameOverPanel.gameObject.SetActive(true);
+        gameOverPanel.alpha = 0f;
+
+        yield return gameOverPanel.DOFade(1f, 1f).SetEase(Ease.InOutQuad).WaitForCompletion();
+
+        yield return new WaitForSeconds(0.5f);
+
+        SceneManager.LoadScene("the last revelation");
+    }
+    IEnumerator HandleGameOverSequence()
+    {
+        dialogueManager.StartDialogue(gameOverDialogue);
+        yield return new WaitUntil(() => dialogueManager.IsDialogueFinished());
+
+        yield return StartCoroutine(ExitToLobby());
+    }
 }
 

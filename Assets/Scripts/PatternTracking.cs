@@ -1,5 +1,7 @@
 using UnityEngine;
 using System.Collections.Generic;
+using System.Linq;
+
 
 public enum ModelType
 {
@@ -30,17 +32,8 @@ public class PatternTracking : MonoBehaviour
         return ModelType.Neutral;
     }
 
-    public bool ShouldSwitchToAggressiveModel()
+    public int CountCornerMoves()
     {
-        int aggressive = 0;
-        foreach (var move in recentMoves)
-            if (move == ModelType.Aggressive) aggressive++;
-
-        return aggressive >= 1; // 최근 5턴 중 1턴 코너에 두면면
-    }
-
-    public ModelType GetRecommendedModelType()
-    {
-        return ShouldSwitchToAggressiveModel() ? ModelType.Aggressive : ModelType.Neutral;
+        return recentMoves.Count(m => m == ModelType.Aggressive);   
     }
 }

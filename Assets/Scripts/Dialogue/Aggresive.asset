@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a23d3b3aac9d0964f96b334c850ee0b5, type: 3}
+  m_Name: Aggresive
+  m_EditorClassIdentifier: 
+  lines:
+  - text: "\"\uC774...\uC774\uB7F4\uC218\uAC00...\""
+  - text: "\"\uB2F9\uC2E0 \uC870\uAE08\uC740 \uB458\uC904 \uC544\uB294\uAD70\uC694\""
+  - text: "\"\uC878\uC5C5\uC720\uC608\uB294 \uCC38\uC544\uB3C4 \uC9C0\uB294\uAC74
+      \uBABB\uCC38\uC544!\""
+  characterSprite: {fileID: 21300000, guid: 8219457cfcc75464884f618143e52d68, type: 3}
+  difficultyLevel: 0
+  showChoicePanel: 0

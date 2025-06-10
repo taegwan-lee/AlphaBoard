@@ -3,27 +3,17 @@ using UnityEngine.EventSystems;
 using UnityEngine.UI;
 public class CharactorOutline : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
 {
-    private Outline outline;
-    private Image image;
-
-    public Color hoverOutlineColor = new Color(1f, 0.8f, 0f); 
-    public float outlineWidth = 2f;
-
-    void Start()
-    {
-        image = GetComponent<Image>();
-        outline = gameObject.AddComponent<Outline>();
-        outline.effectColor = Color.clear;
-        outline.effectDistance = new Vector2(outlineWidth, outlineWidth);
-    }
+   public GameObject glowEffect; // Inspector에서 연결
 
     public void OnPointerEnter(PointerEventData eventData)
     {
-        outline.effectColor = hoverOutlineColor;
+        if (glowEffect != null)
+            glowEffect.SetActive(true);
     }
 
     public void OnPointerExit(PointerEventData eventData)
     {
-        outline.effectColor = Color.clear;
+        if (glowEffect != null)
+            glowEffect.SetActive(false);
     }
 }
