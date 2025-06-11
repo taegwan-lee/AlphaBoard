@@ -1140,7 +1140,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &272493349
 RectTransform:
   m_ObjectHideFlags: 0
@@ -1153,12 +1153,12 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 726140670}
+  m_Father: {fileID: 7917391696902712738}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -1.0313305, y: -17.720001}
-  m_SizeDelta: {x: 227.3158, y: 251.565}
+  m_AnchoredPosition: {x: -0.000019073486, y: 314.1894}
+  m_SizeDelta: {x: 267.3158, y: 320.44}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &272493350
 MonoBehaviour:
@@ -2177,11 +2177,6 @@ PrefabInstance:
 Transform:
   m_CorrespondingSourceObject: {fileID: 4936635111863572, guid: 33aa3234397faa044af73f4700427d62, type: 3}
   m_PrefabInstance: {fileID: 1702541231}
-  m_PrefabAsset: {fileID: 0}
---- !u!224 &726140670 stripped
-RectTransform:
-  m_CorrespondingSourceObject: {fileID: 5096367953961909428, guid: 9b9b6663eb853d44c8d83d13b78c07af, type: 3}
-  m_PrefabInstance: {fileID: 7917391696902712737}
   m_PrefabAsset: {fileID: 0}
 --- !u!4 &736473405 stripped
 Transform:
@@ -4988,6 +4983,18 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 324117230569930067, guid: 9b9b6663eb853d44c8d83d13b78c07af, type: 3}
+      propertyPath: m_text
+      value: 
+      objectReference: {fileID: 0}
+    - target: {fileID: 324117230569930067, guid: 9b9b6663eb853d44c8d83d13b78c07af, type: 3}
+      propertyPath: m_fontSize
+      value: 45
+      objectReference: {fileID: 0}
+    - target: {fileID: 324117230569930067, guid: 9b9b6663eb853d44c8d83d13b78c07af, type: 3}
+      propertyPath: m_fontSizeBase
+      value: 45
+      objectReference: {fileID: 0}
     - target: {fileID: 1777528421078765140, guid: 9b9b6663eb853d44c8d83d13b78c07af, type: 3}
       propertyPath: m_IsActive
       value: 0
@@ -5085,12 +5092,20 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 1718967384}
     - target: {fileID: 5885549778460743134, guid: 9b9b6663eb853d44c8d83d13b78c07af, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 1694.9487
+      objectReference: {fileID: 0}
+    - target: {fileID: 5885549778460743134, guid: 9b9b6663eb853d44c8d83d13b78c07af, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: 205.5892
+      objectReference: {fileID: 0}
+    - target: {fileID: 5885549778460743134, guid: 9b9b6663eb853d44c8d83d13b78c07af, type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: -53
+      value: 2.5
       objectReference: {fileID: 0}
     - target: {fileID: 5885549778460743134, guid: 9b9b6663eb853d44c8d83d13b78c07af, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: 11
+      value: 2.689392
       objectReference: {fileID: 0}
     - target: {fileID: 8181844321076015462, guid: 9b9b6663eb853d44c8d83d13b78c07af, type: 3}
       propertyPath: m_AnchorMax.x
@@ -5114,7 +5129,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8181844321076015462, guid: 9b9b6663eb853d44c8d83d13b78c07af, type: 3}
       propertyPath: m_SizeDelta.y
-      value: -563.3788
+      value: -752.3788
       objectReference: {fileID: 0}
     - target: {fileID: 8181844321076015462, guid: 9b9b6663eb853d44c8d83d13b78c07af, type: 3}
       propertyPath: m_AnchoredPosition.x
@@ -5122,7 +5137,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8181844321076015462, guid: 9b9b6663eb853d44c8d83d13b78c07af, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: -281.6894
+      value: -376.1894
       objectReference: {fileID: 0}
     - target: {fileID: 8829080347607739579, guid: 9b9b6663eb853d44c8d83d13b78c07af, type: 3}
       propertyPath: m_Color.a
@@ -5131,7 +5146,7 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects:
-    - targetCorrespondingSourceObject: {fileID: 5096367953961909428, guid: 9b9b6663eb853d44c8d83d13b78c07af, type: 3}
+    - targetCorrespondingSourceObject: {fileID: 8181844321076015462, guid: 9b9b6663eb853d44c8d83d13b78c07af, type: 3}
       insertIndex: 0
       addedObject: {fileID: 272493349}
     m_AddedComponents: []

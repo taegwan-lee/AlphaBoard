@@ -71,8 +71,9 @@ public class OthelloGameMain : MonoBehaviour
     public GameObject EasyMan;
     public GameObject NormalGirl;
     public GameObject HardMan;
-    private GameObject currentCharacter; //현재 캐릭터 (중간열출용)
+    private GameObject currentCharacter; //현재 캐릭터 (중간 연출용)
     public Sprite aggressiveSprite;
+
     public Transform CharacterPoint; //캐릭터 좌표
     public DialogueManager dialogueManager;
     public DialogueSequence gameOverDialogue;
@@ -82,7 +83,7 @@ public class OthelloGameMain : MonoBehaviour
     [SerializeField] private float cellSpacing = 1.2f;
 
     private bool gameEnded = false;
-    private bool isDialoguePlaying = false; //중간연출용 대사칠때 밑에 턴 안나오게
+    private bool isDialoguePlaying = false; //중간 연출용 대사칠 때 밑에 턴 안나오게
     public Image transitionPanel;
     public CanvasGroup gameOverPanel;
 
@@ -105,39 +106,46 @@ public class OthelloGameMain : MonoBehaviour
             m_AIDifficultyTemperature = 0.1f;
         }
 
-        //공격적 모델은 변수명뒤에 Agg붙일거임
+        //이게 민수씨 모델용
         var AIModel = ModelLoader.Load(modelAsset);
-        var aggressiveModel = ModelLoader.Load(aggressiveModelAsset);
-
         var graph = new FunctionalGraph();
-        var graphAgg = new FunctionalGraph(); //공격모델용 그래프
-
         var inputs = graph.AddInputs(AIModel);
-        var inputsAgg = graphAgg.AddInputs(aggressiveModel);
-
         var outputs = Functional.Forward(AIModel, inputs);
-        var outputsAgg = Functional.Forward(aggressiveModel, inputsAgg);
-
         var select_policy = outputs[0];
         var boardState = outputs[1];
-
-        var select_policyAgg = outputsAgg[0];
-        var boardStateAgg = outputsAgg[1];
-
         var legal = graph.AddInput(DataType.Float, new TensorShape(BoardRows * BoardCols + 1));
-        var legalAgg = graphAgg.AddInput(DataType.Float, new TensorShape(BoardRows * BoardCols + 1));
-
         select_policy = Functional.Exp(select_policy * m_AIDifficultyTemperature);
         select_policy = (0.0001f + select_policy) * legal;
+        var redSum = Functional.ReduceSum(select_policy, new int[] { 1 }, true);
 
+        //공격적 모델은 변수명뒤에 Agg붙일거임
+        var aggressiveModel = ModelLoader.Load(aggressiveModelAsset);
+        var graphAgg = new FunctionalGraph(); //공격모델용 그래프
+        var inputsAgg = graphAgg.AddInputs(aggressiveModel);
+        var outputsAgg = Functional.Forward(aggressiveModel, inputsAgg);
+        var select_policyAgg = outputsAgg[0];
+        var boardStateAgg = outputsAgg[1];
+        var legalAgg = graphAgg.AddInput(DataType.Float, new TensorShape(BoardRows * BoardCols + 1));
         select_policyAgg = Functional.Exp(select_policyAgg * m_AIDifficultyTemperature);
         select_policyAgg = (0.0001f + select_policyAgg) * legalAgg;
-
-        var redSum = Functional.ReduceSum(select_policy, new int[] { 1 }, true);
         var redSumAgg = Functional.ReduceSum(select_policyAgg, new int[] { 1 }, true);
+
+        /* 이게 내가 만든 모델 이거 바꾼 다음에, 150번에 select_policy랑 보드스테이트 위치만 바꾸기. 그다음 341번으로 넘어가기
+        var AIModel = ModelLoader.Load(modelAsset);
+        var graph = new FunctionalGraph();
+        var inputs = graph.AddInputs(AIModel);
+        var outputs = Functional.Forward(AIModel, inputs);
+        var boardState = outputs[0];
+        var select_policy = outputs[1];
+        var legal = graph.AddInput(DataType.Float, new TensorShape(BoardRows * BoardCols + 1));
+        select_policy = Functional.Exp(select_policy * m_AIDifficultyTemperature);
+        select_policy = (0.0001f + select_policy) * legal;
+        var redSum = Functional.ReduceSum(select_policy, new int[] { 1 }, true);
+        */
 
         select_policy /= redSum;
         select_policyAgg /= redSumAgg;
+
 
         var bestMoveModel = graph.Compile(select_policy, boardState);
         var bestMoveModelAgg = graphAgg.Compile(select_policyAgg, boardStateAgg);
@@ -325,11 +333,18 @@ public class OthelloGameMain : MonoBehaviour
             latestBoard = (real_EngineAgg.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
         }
         else
-        {
+        {   
+            //여기
             real_Engine.Schedule(m_Data, m_legalMoves);
             m_MoveProbabilities?.Dispose();
             m_MoveProbabilities = (real_Engine.PeekOutput(0) as Tensor<float>).ReadbackAndClone();
             latestBoard = (real_Engine.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
+            /* 그다음 여기 위에꺼 주석처리 시키고 밑에 코드로 실행하기 그럼 끝
+            real_Engine.Schedule(m_Data, m_legalMoves);
+            latestBoard = (real_Engine.PeekOutput(0) as Tensor<float>).ReadbackAndClone();
+            m_MoveProbabilities?.Dispose();
+            m_MoveProbabilities = (real_Engine.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
+            */
         }
 
 
