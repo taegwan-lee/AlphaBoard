@@ -12,7 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a23d3b3aac9d0964f96b334c850ee0b5, type: 3}
   m_Name: Normal_agg_2
   m_EditorClassIdentifier: 
-  lines: []
-  characterSprite: {fileID: 0}
-  difficultyLevel: 0
+  lines:
+  - text: "\"\uC808\uB300\uB85C \uC548\uC838!!!\""
+  characterSprite: {fileID: 21300000, guid: 30660289f4857144eb93d428ff8f7a24, type: 3}
+  difficultyLevel: 1
   showChoicePanel: 0

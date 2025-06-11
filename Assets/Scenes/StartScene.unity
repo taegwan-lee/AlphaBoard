@@ -5417,7 +5417,7 @@ GameObject:
   - component: {fileID: 530102707}
   - component: {fileID: 530102706}
   - component: {fileID: 530102705}
-  m_Layer: 5
+  m_Layer: 0
   m_Name: Panel
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -5469,7 +5469,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
   m_Color: {r: 0, g: 0, b: 0, a: 1}
-  m_RaycastTarget: 1
+  m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
@@ -5607,7 +5607,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0, y: -14.799988}
+  m_AnchoredPosition: {x: 0, y: -135}
   m_SizeDelta: {x: 0, y: -200.3}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &804195158
@@ -5872,7 +5872,7 @@ GameObject:
   - component: {fileID: 1396903050}
   - component: {fileID: 1396903049}
   - component: {fileID: 1396903048}
-  m_Layer: 5
+  m_Layer: 0
   m_Name: Canvas
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -5997,7 +5997,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 138, y: -283}
+  m_AnchoredPosition: {x: 138, y: -264}
   m_SizeDelta: {x: 592.4, y: 104.3}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1535082056
@@ -6353,6 +6353,7 @@ SceneRoots:
   - {fileID: 203844589}
   - {fileID: 631244768}
   - {fileID: 348497569}
+  - {fileID: 1396903051}
   - {fileID: 1588965585}
   - {fileID: 144103277}
   - {fileID: 219174804}
@@ -6360,4 +6361,3 @@ SceneRoots:
   - {fileID: 1637021192}
   - {fileID: 25556256}
   - {fileID: 137124159}
-  - {fileID: 1396903051}

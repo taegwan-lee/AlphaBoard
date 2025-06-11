@@ -12,7 +12,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a23d3b3aac9d0964f96b334c850ee0b5, type: 3}
   m_Name: Normal_agg
   m_EditorClassIdentifier: 
-  lines: []
-  characterSprite: {fileID: 0}
-  difficultyLevel: 0
+  lines:
+  - text: "\"\uD760... \uC788\uC744 \uC218 \uC5C6\uC5B4....\""
+  - text: "\"\uADF8\uB798... \uC788\uC744 \uC218 \uC5C6\uC5B4... \uC788\uC744 \uC218
+      \uC5C6\uC5B4...\""
+  - text: "\"\uB044\uC544\uC544\uC545!!!!!!\""
+  characterSprite: {fileID: 21300000, guid: cedcb1143447d5e408add478d7362899, type: 3}
+  difficultyLevel: 1
   showChoicePanel: 0

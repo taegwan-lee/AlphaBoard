@@ -21,6 +21,7 @@ public class DialogueManager : MonoBehaviour
 
     public RectTransform dialoguePanelRT;     // 패널 애니메이션용
     public RectTransform characterImageRT;    // 캐릭터 애니메이션용
+    
 
     IEnumerator TypeLine(string line)
     {
@@ -34,7 +35,7 @@ public class DialogueManager : MonoBehaviour
             dialogueText.text += c;
 
             // 글자마다 효과음 재생 
-            if (charCount % 10 == 0 && dialogueSound != null)
+            if (charCount % 15 == 0 && dialogueSound != null)
             {
                 dialogueSound.PlayOneShot(dialogueSound.clip);
             }

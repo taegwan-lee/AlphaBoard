@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Normal
   m_EditorClassIdentifier: 
   lines:
-  - text: "\"\uD750\uC74C? \uB098\uB791 \uC624\uC140\uB85C\uB97C \uB450\uC790\uACE0?\""
+  - text: "\"\uD750\uC74C? \uB098\uB791 \uAC8C\uC784\uD558\uC790\uACE0?\""
   - text: "\"\uC194\uC9C1\uD788 \uB0B4 \uC0C1\uB300\uAC00 \uB420 \uAC83 \uAC19\uC9C4
       \uC54A\uC9C0\uB9CC...\""
   - text: "\"\uC2EC\uC2EC\uD480\uC774\uB85C\uB294 \uAD1C\uCC2E\uACA0\uB124. \uC88B\uC544!\""

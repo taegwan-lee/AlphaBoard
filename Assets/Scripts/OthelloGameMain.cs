@@ -73,12 +73,29 @@ public class OthelloGameMain : MonoBehaviour
     public GameObject HardMan;
     private GameObject currentCharacter; //현재 캐릭터 (중간 연출용)
     public Sprite aggressiveSprite;
+    public Sprite aggressiveSprite_Normal;
+    public Sprite aggressiveSprite_Hard;
+
+
 
     public Transform CharacterPoint; //캐릭터 좌표
+
+    //다이올로그 모음
     public DialogueManager dialogueManager;
     public DialogueSequence gameOverDialogue;
     public DialogueSequence aggressiveDialogue;
     public DialogueSequence aggressiveDialogue_2;
+    public DialogueSequence aggressiveDialogue_Normal_1;
+    public DialogueSequence aggressiveDialogue_Normal_2;
+
+    public DialogueSequence aggressiveDialogue_Hard_1;
+    public DialogueSequence aggressiveDialogue_Hard_2;
+    public DialogueSequence gameOverDialogue_Easy_Lose;
+    public DialogueSequence gameOverDialogue_Normal_Win;
+    public DialogueSequence gameOverDialogue_Normal_Lose;
+    public DialogueSequence gameOverDialogue_Hard_Win;
+    public DialogueSequence gameOverDialogue_Hard_Lose;
+
 
     [SerializeField] private float cellSpacing = 1.2f;
 
@@ -86,6 +103,10 @@ public class OthelloGameMain : MonoBehaviour
     private bool isDialoguePlaying = false; //중간 연출용 대사칠 때 밑에 턴 안나오게
     public Image transitionPanel;
     public CanvasGroup gameOverPanel;
+
+    //승패 연출용
+    public RectTransform victoryImage;
+    public RectTransform defeatImage;
 
     void Start()
     {
@@ -184,6 +205,12 @@ public class OthelloGameMain : MonoBehaviour
         if (gameEnded || isDialoguePlaying)
         {
             turnText.gameObject.SetActive(false);
+        }
+
+        //강제종료
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            Application.Quit();
         }
     }
 
@@ -333,7 +360,7 @@ public class OthelloGameMain : MonoBehaviour
             latestBoard = (real_EngineAgg.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
         }
         else
-        {   
+        {
             //여기
             real_Engine.Schedule(m_Data, m_legalMoves);
             m_MoveProbabilities?.Dispose();
@@ -528,6 +555,22 @@ public class OthelloGameMain : MonoBehaviour
             StartCoroutine(HandleGameOverSequence());
         }
     }
+    bool CheckPlayerWin(out int blackCount, out int whiteCount)
+    {
+        blackCount = 0;
+        whiteCount = 0;
+
+        for (int y = 0; y < BoardRows; y++)
+        {
+            for (int x = 0; x < BoardCols; x++)
+            {
+                if (board[y, x] == 1) blackCount++;
+                else if (board[y, x] == -1) whiteCount++;
+            }
+        }
+
+        return blackCount > whiteCount;
+    }
 
     bool HasAnyValidMove(int player)
     {
@@ -691,7 +734,22 @@ public class OthelloGameMain : MonoBehaviour
         yield return new WaitForSeconds(2f);
 
         // 5. 대사 시작
-        dialogueManager.StartDialogue(aggressiveDialogue);
+        Difficulty difficulty = GameSettings.SelectedDifficulty;
+        DialogueSequence firstDialogue = aggressiveDialogue_Normal_1;
+        DialogueSequence secondDialogue = aggressiveDialogue_Normal_2;
+
+        if (difficulty == Difficulty.Easy)
+        {
+            firstDialogue = aggressiveDialogue;
+            secondDialogue = aggressiveDialogue_2;
+        }
+        else if (difficulty == Difficulty.Hard)
+        {
+            firstDialogue = aggressiveDialogue_Hard_1;
+            secondDialogue = aggressiveDialogue_Hard_2;
+        }
+
+        dialogueManager.StartDialogue(firstDialogue);
         yield return new WaitUntil(() => dialogueManager.IsDialogueFinished());
 
         yield return StartCoroutine(PlayPhaseTransition());
@@ -699,7 +757,7 @@ public class OthelloGameMain : MonoBehaviour
         //캐릭터 이미지 변경
         ChangeCharacterImageToAggressive();
 
-        dialogueManager.StartDialogue(aggressiveDialogue_2);
+        dialogueManager.StartDialogue(secondDialogue);
         yield return new WaitUntil(() => dialogueManager.IsDialogueFinished());
 
         AggressivePhase.Play(); //2페이즈 음악
@@ -721,7 +779,13 @@ public class OthelloGameMain : MonoBehaviour
         var visual = currentCharacter.GetComponent<CharacterVisual>();
         if (visual != null)
         {
-            visual.ChangeToAggressive(aggressiveSprite);
+            Difficulty difficulty = GameSettings.SelectedDifficulty;
+
+            Sprite chosenSprite = aggressiveSprite_Normal;
+            if (difficulty == Difficulty.Easy) chosenSprite = aggressiveSprite;
+            else if (difficulty == Difficulty.Hard) chosenSprite = aggressiveSprite_Hard;
+
+            visual.ChangeToAggressive(chosenSprite);
         }
         else
         {
@@ -772,10 +836,56 @@ public class OthelloGameMain : MonoBehaviour
     }
     IEnumerator HandleGameOverSequence()
     {
-        dialogueManager.StartDialogue(gameOverDialogue);
+        bool isPlayerWin = CheckPlayerWin(out int black, out int white);
+        yield return StartCoroutine(ShowGameResultBounce(isPlayerWin));
+
+        //게임 종료 대사 분기
+        DialogueSequence selectedDialogue = GetGameOverDialogue(isPlayerWin);
+        dialogueManager.StartDialogue(selectedDialogue);
+
         yield return new WaitUntil(() => dialogueManager.IsDialogueFinished());
 
         yield return StartCoroutine(ExitToLobby());
+    }
+
+    IEnumerator ShowGameResultBounce(bool isWin)
+    {
+        RectTransform target = isWin ? victoryImage : defeatImage;
+        target.gameObject.SetActive(true);
+
+        Vector2 originalPos = target.anchoredPosition;
+        Vector2 startPos = originalPos + Vector2.up * 600f;
+        target.anchoredPosition = startPos;
+
+        // 떨어지면서 bounce
+        yield return target.DOAnchorPosY(originalPos.y, 1.0f)
+                            .SetEase(Ease.OutBounce)
+                            .WaitForCompletion();
+
+        // 잠깐 멈췄다가 사라짐
+        yield return new WaitForSeconds(1.8f);
+
+        yield return target.DOAnchorPosY(originalPos.y + 100f, 0.6f)
+                            .SetEase(Ease.InBack)
+                            .WaitForCompletion();
+
+        target.gameObject.SetActive(false);
+    }
+
+    DialogueSequence GetGameOverDialogue(bool isWin)
+    {
+        Difficulty difficulty = GameSettings.SelectedDifficulty;
+
+        return (difficulty, isWin) switch
+        {
+            (Difficulty.Easy, true) => gameOverDialogue,
+            (Difficulty.Easy, false) => gameOverDialogue_Easy_Lose,
+            (Difficulty.Normal, true) => gameOverDialogue_Normal_Win,
+            (Difficulty.Normal, false) => gameOverDialogue_Normal_Lose,
+            (Difficulty.Hard, true) => gameOverDialogue_Hard_Win,
+            (Difficulty.Hard, false) => gameOverDialogue_Hard_Lose,
+            _ => gameOverDialogue_Easy_Lose // fallback
+        };
     }
 }
 
