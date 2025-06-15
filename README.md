@@ -35,20 +35,4 @@ AI는 강화학습을 적용하였으며, 클라이언트 제작은 Unity로 제
 - 모델별 policy accuracy 및 loss 수렴 확인 
 
 ## 주요 프로젝트 구조
-/Assets/
-  /Scripts/
-    - OthelloGameMain.cs  # 게임 메인 코드, 모델 로딩 및 추론
-    - Charactor*.cs # 캐릭터 비쥬얼, 상호작용 코드
-    /Dialogue/
-      - DialogueManager.cs # 대사 관련 로직
-  /Models/
-    - 06_08.models.onnx # 일반형 모델
-    /Final_models/
-      -v26_def2.onnx # 방어형 모델
-      -v27_off2.onnx # 공격형 모델
-  /Images/ 
-    - 게임 내 이미지 관리
-  /Scenes/
-    - MainGame.unity # 메인 게임(오셀로를 실제 두는) 씬
-    - StartScene.unity # 타이틀 시작 화면 씬
-    - thelastrevelation.unity # 로비, 난이도 선택 씬
+<pre><code>. ├── Assets/ │ ├── Scripts/ │ │ ├── OthelloGameMain.cs # 게임 메인 코드, 모델 로딩 및 추론 │ │ └── Charactor*.cs # 캐릭터 비쥬얼 및 상호작용 │ ├── Dialogue/ │ │ └── DialogueManager.cs # 대사 관련 로직 │ ├── Models/ │ │ └── 06_08.models.onnx # 일반형 모델 │ ├── Final_models/ │ │ ├── v26_def2.onnx # 방어형 모델 │ │ └── v27_off2.onnx # 공격형 모델 │ ├── Images/ │ │ └── ... # 게임 내 이미지 리소스 │ └── Scenes/ │ ├── MainGame.unity # 메인 게임 (오셀로 두기) │ ├── StartScene.unity # 타이틀 시작 화면 │ └── thelastrevelation.unity # 로비 및 난이도 선택 화면 </code></pre>
