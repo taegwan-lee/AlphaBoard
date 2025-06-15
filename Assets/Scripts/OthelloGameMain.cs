@@ -200,6 +200,12 @@ public class OthelloGameMain : MonoBehaviour
         {
             Application.Quit();
         }
+
+        if (gameEnded)
+        {
+            turnText.text = "게임 종료";
+            return;
+        }
     }
 
     void CreateBoard()
@@ -561,6 +567,7 @@ public class OthelloGameMain : MonoBehaviour
             Debug.Log("양쪽 모두 착수 불가 → 게임 종료");
             gameEnded = true;
             isDialoguePlaying = true;
+            currentTurn = 99; //아예 안멈추게
 
             int black = 0, white = 0;
             for (int y = 0; y < BoardRows; y++)
@@ -739,7 +746,10 @@ public class OthelloGameMain : MonoBehaviour
 
     //중간연출용
     IEnumerator HandleAggressiveAISwitch()
-    {
+    {   
+
+        if (gameEnded) yield break;
+
         // 1. 턴 중지
         aiScheduled = true;
         isDialoguePlaying = true;
