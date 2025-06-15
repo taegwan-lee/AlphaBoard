@@ -127,7 +127,6 @@ public class OthelloGameMain : MonoBehaviour
             m_AIDifficultyTemperature = 0.1f;
         }
 
-        //이게 민수씨 모델용
         var AIModel = ModelLoader.Load(modelAsset);
         var graph = new FunctionalGraph();
         var inputs = graph.AddInputs(AIModel);
@@ -138,6 +137,7 @@ public class OthelloGameMain : MonoBehaviour
         select_policy = Functional.Exp(select_policy * m_AIDifficultyTemperature);
         select_policy = (0.0001f + select_policy) * legal;
         var redSum = Functional.ReduceSum(select_policy, new int[] { 1 }, true);
+    
 
         //공격적 모델은 변수명뒤에 Agg붙일거임
         var aggressiveModel = ModelLoader.Load(aggressiveModelAsset);
@@ -151,24 +151,12 @@ public class OthelloGameMain : MonoBehaviour
         select_policyAgg = (0.0001f + select_policyAgg) * legalAgg;
         var redSumAgg = Functional.ReduceSum(select_policyAgg, new int[] { 1 }, true);
 
-        /* 이게 내가 만든 모델 이거 바꾼 다음에, 150번에 select_policy랑 보드스테이트 위치만 바꾸기. 그다음 341번으로 넘어가기
-        var AIModel = ModelLoader.Load(modelAsset);
-        var graph = new FunctionalGraph();
-        var inputs = graph.AddInputs(AIModel);
-        var outputs = Functional.Forward(AIModel, inputs);
-        var boardState = outputs[0];
-        var select_policy = outputs[1];
-        var legal = graph.AddInput(DataType.Float, new TensorShape(BoardRows * BoardCols + 1));
-        select_policy = Functional.Exp(select_policy * m_AIDifficultyTemperature);
-        select_policy = (0.0001f + select_policy) * legal;
-        var redSum = Functional.ReduceSum(select_policy, new int[] { 1 }, true);
-        */
 
         select_policy /= redSum;
         select_policyAgg /= redSumAgg;
 
 
-        var bestMoveModel = graph.Compile(select_policy, boardState);
+        var bestMoveModel = graph.Compile(select_policy , boardState);
         var bestMoveModelAgg = graphAgg.Compile(select_policyAgg, boardStateAgg);
 
         real_Engine = new Worker(bestMoveModel, BackendType.CPU);
@@ -361,17 +349,10 @@ public class OthelloGameMain : MonoBehaviour
         }
         else
         {
-            //여기
             real_Engine.Schedule(m_Data, m_legalMoves);
             m_MoveProbabilities?.Dispose();
             m_MoveProbabilities = (real_Engine.PeekOutput(0) as Tensor<float>).ReadbackAndClone();
             latestBoard = (real_Engine.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
-            /* 그다음 여기 위에꺼 주석처리 시키고 밑에 코드로 실행하기 그럼 끝
-            real_Engine.Schedule(m_Data, m_legalMoves);
-            latestBoard = (real_Engine.PeekOutput(0) as Tensor<float>).ReadbackAndClone();
-            m_MoveProbabilities?.Dispose();
-            m_MoveProbabilities = (real_Engine.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
-            */
         }
 
 
@@ -420,7 +401,14 @@ public class OthelloGameMain : MonoBehaviour
 
     void HighlightRecommendedMove()
     {
-        recommendedMove = GetRecommendedMove();
+         if (currentType == AIType.AggressiveAIType)
+        {
+            recommendedMove = GetRecommendedMoveAgg();
+        }
+        else
+        {
+            recommendedMove = GetRecommendedMove();
+        }
     }
 
     Vector2Int? GetRecommendedMove()
@@ -435,6 +423,38 @@ public class OthelloGameMain : MonoBehaviour
         using var latestBoard = (real_Engine.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
 
         float boardValue = latestBoard[0, 0];
+
+        float bestValue = float.MinValue;
+        int bestIndex = -1;
+
+        for (int i = 0; i < BoardRows * BoardCols; i++)
+        {
+            if (m_MoveProbabilities[i] > bestValue)
+            {
+                bestValue = m_MoveProbabilities[i];
+                bestIndex = i;
+            }
+        }
+
+        if (bestIndex == -1)
+            return null;
+
+        int y = bestIndex / BoardCols;
+        int x = bestIndex % BoardCols;
+
+        return new Vector2Int(x, y);
+    }
+
+    Vector2Int? GetRecommendedMoveAgg()
+    {
+        UpdateBoardTensor();
+        UpdateLegalMovesTensor();
+
+        real_EngineAgg.Schedule(m_Data, m_legalMoves);
+
+        m_MoveProbabilities?.Dispose();
+        m_MoveProbabilities = (real_EngineAgg.PeekOutput(0) as Tensor<float>).ReadbackAndClone();
+        using var latestBoard = (real_EngineAgg.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
 
         float bestValue = float.MinValue;
         int bestIndex = -1;
