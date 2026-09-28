@@ -43,7 +43,7 @@ Self-play와 MCTS를 활용해 학습한 모델을 ONNX로 변환하고, Unity �
 | --- | --- |
 | Engine | Unity `6000.2.9f1` |
 | Language | C# |
-| Model inference | Unity Sentis `2.1.2` |
+| Model inference | Unity Sentis `2.2.0` |
 | Model format | ONNX |
 | Training | PyTorch, Self-play, MCTS 기반 정책·가치망 학습 |
 | UI / Animation | TextMeshPro, uGUI, DOTween, Coroutine |
@@ -247,7 +247,7 @@ Assets/
 ### 요구 환경
 
 - Unity Hub
-- Unity Editor `6000.0.47f1`
+- Unity Editor `6000.2.9f1`
 
 ### 실행
 
@@ -256,7 +256,7 @@ git clone https://github.com/taegwan-lee/AlphaBoard.git
 ```
 
 1. Unity Hub에서 클론한 프로젝트 폴더를 추가합니다.
-2. Unity `6000.0.47f1`로 프로젝트를 엽니다.
+2. Unity `6000.2.9f1`로 프로젝트를 엽니다.
 3. `Assets/Scenes/StartScene.unity`를 엽니다.
 4. Unity Editor의 Play 버튼을 누릅니다.
 
