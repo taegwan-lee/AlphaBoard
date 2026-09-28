@@ -31,7 +31,7 @@ Self-play와 MCTS를 활용해 학습한 모델을 ONNX로 변환하고, Unity �
 
 | 구분 | 기술 |
 | --- | --- |
-| Engine | Unity `6000.0.47f1` |
+| Engine | Unity `6000.2.9f1` |
 | Language | C# |
 | Model inference | Unity Sentis `2.1.2` |
 | Model format | ONNX |
