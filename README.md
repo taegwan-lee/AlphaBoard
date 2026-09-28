@@ -41,7 +41,7 @@ Self-play와 MCTS를 활용해 학습한 모델을 ONNX로 변환하고, Unity �
 
 | 구분 | 기술 |
 | --- | --- |
-| Engine | Unity `6000.2.9f1` |
+| Engine | Unity `6000.0.47f1` |
 | Language | C# |
 | Model inference | Unity Sentis `2.2.0` |
 | Model format | ONNX |
@@ -274,6 +274,3 @@ StartScene → the last revelation → MainGame → the last revelation
 - 모델 간 반복 대전 환경을 구축해 플레이 강도와 전략 차이를 비교할 필요가 있습니다.
 - 난이도별 정책 분포 설정은 실제 승률을 측정해 다시 조정할 필요가 있습니다.
 
-## License
-
-별도의 라이선스가 명시되지 않은 프로젝트입니다. 코드 및 리소스 사용 전 저장소 소유자에게 문의해 주세요.
