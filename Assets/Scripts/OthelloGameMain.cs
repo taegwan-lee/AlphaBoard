@@ -1,5 +1,5 @@
 using UnityEngine;
-using Unity.Sentis;
+
 using UnityEngine.UI;
 using System.Collections.Generic;
 using TMPro;
@@ -15,12 +15,12 @@ public enum AIType
 
 public class OthelloGameMain : MonoBehaviour
 {
-    public ModelAsset modelAsset;
+    public Unity.InferenceEngine.ModelAsset modelAsset;
 
-    public ModelAsset aggressiveModelAsset; //공격적인 모델
+    public Unity.InferenceEngine.ModelAsset aggressiveModelAsset; //공격적인 모델
     public TMP_Text turnText;
-    Worker real_Engine;
-    Worker real_EngineAgg; //공격적인 모델용 워커
+    Unity.InferenceEngine.Worker real_Engine;
+    Unity.InferenceEngine.Worker real_EngineAgg; //공격적인 모델용 워커
 
 
     //패턴 파악
@@ -30,9 +30,9 @@ public class OthelloGameMain : MonoBehaviour
     const int BoardRows = 8;
     const int BoardCols = 8;
 
-    Tensor<float> m_Data;
-    Tensor<float> m_legalMoves;
-    Tensor<float> m_MoveProbabilities = null;
+    Unity.InferenceEngine.Tensor<float> m_Data;
+    Unity.InferenceEngine.Tensor<float> m_legalMoves;
+    Unity.InferenceEngine.Tensor<float> m_MoveProbabilities = null;
 
     int[,] board = new int[BoardRows, BoardCols];
     GameObject[,] pieces = new GameObject[BoardRows, BoardCols];
@@ -116,7 +116,7 @@ public class OthelloGameMain : MonoBehaviour
 
         if (difficulty == Difficulty.Easy)
         {
-            m_AIDifficultyTemperature = 1.0f;
+            m_AIDifficultyTemperature = 0.1f;
         }
         else if (difficulty == Difficulty.Normal)
         {
@@ -124,32 +124,32 @@ public class OthelloGameMain : MonoBehaviour
         }
         else
         {
-            m_AIDifficultyTemperature = 0.1f;
+            m_AIDifficultyTemperature = 1.0f;
         }
 
-        var AIModel = ModelLoader.Load(modelAsset);
-        var graph = new FunctionalGraph();
+        var AIModel = Unity.InferenceEngine.ModelLoader.Load(modelAsset);
+        var graph = new Unity.InferenceEngine.FunctionalGraph();
         var inputs = graph.AddInputs(AIModel);
-        var outputs = Functional.Forward(AIModel, inputs);
+        var outputs = Unity.InferenceEngine.Functional.Forward(AIModel, inputs);
         var select_policy = outputs[0];
         var boardState = outputs[1];
-        var legal = graph.AddInput(DataType.Float, new TensorShape(BoardRows * BoardCols + 1));
-        select_policy = Functional.Exp(select_policy * m_AIDifficultyTemperature);
+        var legal = graph.AddInput(Unity.InferenceEngine.DataType.Float, new Unity.InferenceEngine.TensorShape(BoardRows * BoardCols + 1));
+        select_policy = Unity.InferenceEngine.Functional.Exp(select_policy * m_AIDifficultyTemperature);
         select_policy = (0.0001f + select_policy) * legal;
-        var redSum = Functional.ReduceSum(select_policy, new int[] { 1 }, true);
+        var redSum = Unity.InferenceEngine.Functional.ReduceSum(select_policy, new int[] { 1 }, true);
     
 
         //공격적 모델은 변수명뒤에 Agg붙일거임
-        var aggressiveModel = ModelLoader.Load(aggressiveModelAsset);
-        var graphAgg = new FunctionalGraph(); //공격모델용 그래프
+        var aggressiveModel = Unity.InferenceEngine.ModelLoader.Load(aggressiveModelAsset);
+        var graphAgg = new Unity.InferenceEngine.FunctionalGraph(); //공격모델용 그래프
         var inputsAgg = graphAgg.AddInputs(aggressiveModel);
-        var outputsAgg = Functional.Forward(aggressiveModel, inputsAgg);
+        var outputsAgg = Unity.InferenceEngine.Functional.Forward(aggressiveModel, inputsAgg);
         var select_policyAgg = outputsAgg[0];
         var boardStateAgg = outputsAgg[1];
-        var legalAgg = graphAgg.AddInput(DataType.Float, new TensorShape(BoardRows * BoardCols + 1));
-        select_policyAgg = Functional.Exp(select_policyAgg * m_AIDifficultyTemperature);
+        var legalAgg = graphAgg.AddInput(Unity.InferenceEngine.DataType.Float, new Unity.InferenceEngine.TensorShape(BoardRows * BoardCols + 1));
+        select_policyAgg = Unity.InferenceEngine.Functional.Exp(select_policyAgg * m_AIDifficultyTemperature);
         select_policyAgg = (0.0001f + select_policyAgg) * legalAgg;
-        var redSumAgg = Functional.ReduceSum(select_policyAgg, new int[] { 1 }, true);
+        var redSumAgg = Unity.InferenceEngine.Functional.ReduceSum(select_policyAgg, new int[] { 1 }, true);
 
 
         select_policy /= redSum;
@@ -159,11 +159,11 @@ public class OthelloGameMain : MonoBehaviour
         var bestMoveModel = graph.Compile(select_policy , boardState);
         var bestMoveModelAgg = graphAgg.Compile(select_policyAgg, boardStateAgg);
 
-        real_Engine = new Worker(bestMoveModel, BackendType.CPU);
-        real_EngineAgg = new Worker(bestMoveModelAgg, BackendType.CPU);
+        real_Engine = new Unity.InferenceEngine.Worker(bestMoveModel, Unity.InferenceEngine.BackendType.CPU);
+        real_EngineAgg = new Unity.InferenceEngine.Worker(bestMoveModelAgg, Unity.InferenceEngine.BackendType.CPU);
 
-        m_Data = new Tensor<float>(new TensorShape(1, 2, BoardRows, BoardCols));
-        m_legalMoves = new Tensor<float>(new TensorShape(BoardRows * BoardCols + 1));
+        m_Data = new Unity.InferenceEngine.Tensor<float>(new Unity.InferenceEngine.TensorShape(1, 2, BoardRows, BoardCols));
+        m_legalMoves = new Unity.InferenceEngine.Tensor<float>(new Unity.InferenceEngine.TensorShape(BoardRows * BoardCols + 1));
 
         GameBgmSource.Play();
 
@@ -343,22 +343,22 @@ public class OthelloGameMain : MonoBehaviour
         float rand = UnityEngine.Random.value;
         float cumulative = 0f;
 
-        Tensor<float> latestBoard;
+        Unity.InferenceEngine.Tensor<float> latestBoard;
 
         //aitype 바뀌었는지 확인후 해당 ai호출
         if (currentType == AIType.AggressiveAIType)
         {
             real_EngineAgg.Schedule(m_Data, m_legalMoves);
             m_MoveProbabilities?.Dispose();
-            m_MoveProbabilities = (real_EngineAgg.PeekOutput(0) as Tensor<float>).ReadbackAndClone();
-            latestBoard = (real_EngineAgg.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
+            m_MoveProbabilities = (real_EngineAgg.PeekOutput(0) as Unity.InferenceEngine.Tensor<float>).ReadbackAndClone();
+            latestBoard = (real_EngineAgg.PeekOutput(1) as Unity.InferenceEngine.Tensor<float>).ReadbackAndClone();
         }
         else
         {
             real_Engine.Schedule(m_Data, m_legalMoves);
             m_MoveProbabilities?.Dispose();
-            m_MoveProbabilities = (real_Engine.PeekOutput(0) as Tensor<float>).ReadbackAndClone();
-            latestBoard = (real_Engine.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
+            m_MoveProbabilities = (real_Engine.PeekOutput(0) as Unity.InferenceEngine.Tensor<float>).ReadbackAndClone();
+            latestBoard = (real_Engine.PeekOutput(1) as Unity.InferenceEngine.Tensor<float>).ReadbackAndClone();
         }
 
 
@@ -425,8 +425,8 @@ public class OthelloGameMain : MonoBehaviour
         real_Engine.Schedule(m_Data, m_legalMoves);
 
         m_MoveProbabilities?.Dispose();
-        m_MoveProbabilities = (real_Engine.PeekOutput(0) as Tensor<float>).ReadbackAndClone();
-        using var latestBoard = (real_Engine.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
+        m_MoveProbabilities = (real_Engine.PeekOutput(0) as Unity.InferenceEngine.Tensor<float>).ReadbackAndClone();
+        using var latestBoard = (real_Engine.PeekOutput(1) as Unity.InferenceEngine.Tensor<float>).ReadbackAndClone();
 
         float boardValue = latestBoard[0, 0];
 
@@ -459,8 +459,8 @@ public class OthelloGameMain : MonoBehaviour
         real_EngineAgg.Schedule(m_Data, m_legalMoves);
 
         m_MoveProbabilities?.Dispose();
-        m_MoveProbabilities = (real_EngineAgg.PeekOutput(0) as Tensor<float>).ReadbackAndClone();
-        using var latestBoard = (real_EngineAgg.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
+        m_MoveProbabilities = (real_EngineAgg.PeekOutput(0) as Unity.InferenceEngine.Tensor<float>).ReadbackAndClone();
+        using var latestBoard = (real_EngineAgg.PeekOutput(1) as Unity.InferenceEngine.Tensor<float>).ReadbackAndClone();
 
         float bestValue = float.MinValue;
         int bestIndex = -1;
@@ -830,7 +830,7 @@ public class OthelloGameMain : MonoBehaviour
         UpdateLegalMovesTensor();
 
         real_Engine.Schedule(m_Data, m_legalMoves);
-        using var latestBoard = (real_Engine.PeekOutput(1) as Tensor<float>).ReadbackAndClone();
+        using var latestBoard = (real_Engine.PeekOutput(1) as Unity.InferenceEngine.Tensor<float>).ReadbackAndClone();
 
         return latestBoard[0, 0];
     }
